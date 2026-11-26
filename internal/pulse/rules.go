@@ -2,6 +2,7 @@ package pulse
 
 import (
 	"fmt"
+	"math"
 	"strconv"
 )
 
@@ -91,16 +92,72 @@ func profileStatus(rs []Response, month int, signals []Signal) string {
 	return st
 }
 func Average(r Response) *float64 {
-	sum, n := 0, 0
-	for _, v := range r.Scores {
-		if v != nil {
-			sum += *v
-			n++
+	return SummarizeScores(r).Average
+}
+
+type ScoreValue struct {
+	Field string `json:"field"`
+	Label string `json:"label"`
+	Value int    `json:"value"`
+}
+type ScoreSummary struct {
+	Average       *float64     `json:"average"`
+	Answered      int          `json:"answered"`
+	Expected      int          `json:"expected"`
+	Minimum       *int         `json:"minimum"`
+	LowCount      int          `json:"lowCount"`
+	CriticalCount int          `json:"criticalCount"`
+	LowScores     []ScoreValue `json:"lowScores"`
+}
+
+// Average only the questionnaire's known, present scores. Missing/invalid
+// entries do not enter either numerator or denominator. Round once for display.
+func SummarizeScores(r Response) ScoreSummary {
+	out := ScoreSummary{LowScores: []ScoreValue{}}
+	if r.Source != "intern" && r.Source != "mentor" {
+		return out
+	}
+	fields := Fields(r.Source)
+	out.Expected = len(fields)
+	sum := 0
+	for _, field := range fields {
+		value := r.Scores[field]
+		if value == nil || *value < 1 || *value > 5 {
+			continue
+		}
+		out.Answered++
+		sum += *value
+		if out.Minimum == nil || *value < *out.Minimum {
+			v := *value
+			out.Minimum = &v
+		}
+		if *value <= 3 {
+			out.LowCount++
+			out.LowScores = append(out.LowScores, ScoreValue{field, Labels[field], *value})
+		}
+		if *value <= 2 {
+			out.CriticalCount++
 		}
 	}
-	if n == 0 {
-		return nil
+	if out.Answered > 0 {
+		value := math.Round(float64(sum)*100/float64(out.Answered)) / 100
+		out.Average = &value
 	}
-	x := float64(sum) / float64(n)
-	return &x
+	return out
+}
+
+func ScoresForMonth(rs []Response, month int) (ScoreSummary, ScoreSummary) {
+	intern := SummarizeScores(Response{Source: "intern"})
+	mentor := SummarizeScores(Response{Source: "mentor"})
+	for _, r := range rs {
+		if r.Month != month {
+			continue
+		}
+		if r.Source == "intern" {
+			intern = SummarizeScores(r)
+		} else if r.Source == "mentor" {
+			mentor = SummarizeScores(r)
+		}
+	}
+	return intern, mentor
 }

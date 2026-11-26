@@ -1569,6 +1569,12 @@
               "$ref": "#/components/schemas/ConversationPlan"
             },
             "description": "Только HR; AI-план или числовой шаблон без модели"
+          },
+          "internStats": {
+            "$ref": "#/components/schemas/ScoreSummary"
+          },
+          "mentorStats": {
+            "$ref": "#/components/schemas/ScoreSummary"
           }
         },
         "required": [
@@ -1583,7 +1589,9 @@
           "aiState",
           "revision",
           "hiddenSignals",
-          "conversationPlans"
+          "conversationPlans",
+          "internStats",
+          "mentorStats"
         ],
         "additionalProperties": false
       },
@@ -1682,6 +1690,83 @@
             "type": "string",
             "maxLength": 1000,
             "description": "Фиксированный нейтральный шаблон; не отправляется автоматически"
+          }
+        }
+      },
+      "ScoreSummary": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "average",
+          "answered",
+          "expected",
+          "minimum",
+          "lowCount",
+          "criticalCount",
+          "lowScores"
+        ],
+        "properties": {
+          "average": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5,
+            "description": "Среднее заполненных показателей этой анкеты за выбранный месяц, округлено до 2 знаков; null при отсутствии оценок"
+          },
+          "answered": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7
+          },
+          "expected": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7
+          },
+          "minimum": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 1,
+            "maximum": 5
+          },
+          "lowCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7
+          },
+          "criticalCount": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 7
+          },
+          "lowScores": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "field",
+                "label",
+                "value"
+              ],
+              "properties": {
+                "field": {
+                  "type": "string"
+                },
+                "label": {
+                  "type": "string"
+                },
+                "value": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 3
+                }
+              }
+            }
           }
         }
       }

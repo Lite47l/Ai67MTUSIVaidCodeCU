@@ -268,7 +268,8 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	}
 	// Original mentor questionnaire comments are visible to its own intern by product policy.
 	active := append(append([]Signal{}, rules...), hidden...)
-	writeJSON(w, 200, map[string]any{"person": p, "responses": rs, "feedback": fb, "month": month, "ruleSignals": rules, "hiddenSignals": hidden, "conversationPlans": plans, "timeline": timeline, "status": profileStatus(rs, month, active), "ai": a, "aiState": state, "revision": Revision(rs)})
+	internStats, mentorStats := ScoresForMonth(rs, month)
+	writeJSON(w, 200, map[string]any{"person": p, "responses": rs, "feedback": fb, "month": month, "internStats": internStats, "mentorStats": mentorStats, "ruleSignals": rules, "hiddenSignals": hidden, "conversationPlans": plans, "timeline": timeline, "status": profileStatus(rs, month, active), "ai": a, "aiState": state, "revision": Revision(rs)})
 }
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	month, err := selectedMonth(r)
@@ -297,23 +298,16 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		intern, mentor := false, false
-		var ia, ma *float64
-		complete := true
+		internStats, mentorStats := ScoresForMonth(rs, month)
+		complete := internStats.Answered == internStats.Expected && mentorStats.Answered == mentorStats.Expected
 		for _, r := range rs {
 			if r.Month != month {
 				continue
 			}
 			if r.Source == "intern" {
 				intern = true
-				ia = Average(r)
 			} else {
 				mentor = true
-				ma = Average(r)
-			}
-			for _, v := range r.Scores {
-				if v == nil {
-					complete = false
-				}
 			}
 		}
 		if intern {
@@ -346,7 +340,7 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 		case "positive":
 			positive++
 		}
-		items = append(items, map[string]any{"person": p, "internSubmitted": intern, "mentorSubmitted": mentor, "scoresComplete": complete, "internAverage": ia, "mentorAverage": ma, "status": st, "signals": signals})
+		items = append(items, map[string]any{"person": p, "internSubmitted": intern, "mentorSubmitted": mentor, "scoresComplete": complete, "internAverage": internStats.Average, "mentorAverage": mentorStats.Average, "internStats": internStats, "mentorStats": mentorStats, "status": st, "signals": signals})
 	}
 	var closed, totalActions int
 	err = s.Store.DB.QueryRowContext(r.Context(), "SELECT count(*),coalesce(sum(CASE WHEN status='closed' THEN 1 ELSE 0 END),0) FROM actions").Scan(&totalActions, &closed)
@@ -482,17 +476,29 @@ func (s *Server) export(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) integrations(w http.ResponseWriter, r *http.Request) {
 	deliveries := []any{}
-	rows, err := s.Store.DB.QueryContext(r.Context(), "SELECT event_id,received_at,status,source FROM deliveries ORDER BY id DESC LIMIT 50")
+	rows, err := s.Store.DB.QueryContext(r.Context(), "SELECT d.event_id,d.received_at,d.status,d.source,r.intern_id,r.month,r.source FROM deliveries d LEFT JOIN responses r ON r.event_id=d.event_id ORDER BY d.id DESC LIMIT 50")
 	if err != nil {
 		s.internal(w, err)
 		return
 	}
 	for rows.Next() {
 		var event, at, st, src string
-		if err = rows.Scan(&event, &at, &st, &src); err != nil {
+		var intern, respondent sql.NullString
+		var month sql.NullInt64
+		if err = rows.Scan(&event, &at, &st, &src, &intern, &month, &respondent); err != nil {
 			break
 		}
-		deliveries = append(deliveries, map[string]string{"eventId": event, "receivedAt": at, "status": st, "source": src})
+		item := map[string]any{"eventId": event, "receivedAt": at, "status": st, "source": src, "internId": nil, "month": nil, "respondent": nil}
+		if intern.Valid {
+			item["internId"] = intern.String
+		}
+		if month.Valid {
+			item["month"] = month.Int64
+		}
+		if respondent.Valid {
+			item["respondent"] = respondent.String
+		}
+		deliveries = append(deliveries, item)
 	}
 	if err == nil {
 		err = rows.Err()
