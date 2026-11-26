@@ -10,9 +10,10 @@ RUN apk add --no-cache ca-certificates && addgroup -g 10001 pulse && adduser -D 
 WORKDIR /app
 COPY --from=build /pulse /app/pulse
 COPY data/history.json /app/data/history.json
+COPY scripts/docker-entrypoint.sh /app/docker-entrypoint.sh
 RUN mkdir -p /app/storage && chown -R pulse:pulse /app/storage
 USER pulse
 ENV ADDR=0.0.0.0:8080 DB_PATH=/app/storage/pulse.db
 EXPOSE 8080
 HEALTHCHECK --interval=15s --timeout=3s --start-period=10s CMD wget -q -O /dev/null http://127.0.0.1:8080/readyz || exit 1
-ENTRYPOINT ["/app/pulse"]
+ENTRYPOINT ["/bin/sh", "/app/docker-entrypoint.sh"]

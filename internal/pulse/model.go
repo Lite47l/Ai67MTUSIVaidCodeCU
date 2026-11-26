@@ -143,13 +143,22 @@ type Signal struct {
 	Title    string     `json:"title"`
 	Evidence []Evidence `json:"evidence"`
 }
+type ConversationPlan struct {
+	Month         int      `json:"month"`
+	Situation     string   `json:"situation"`
+	EvidenceIDs   []string `json:"evidenceIds"`
+	Questions     []string `json:"questions"`
+	ActionType    string   `json:"actionType"`
+	MentorMessage string   `json:"mentorMessage"`
+}
 type Analysis struct {
-	SchemaVersion   string   `json:"schemaVersion"`
-	RequestID       string   `json:"requestId"`
-	Revision        string   `json:"revision"`
-	Summary         string   `json:"summary"`
-	Signals         []Signal `json:"signals"`
-	Recommendations []string `json:"recommendations"`
+	SchemaVersion     string             `json:"schemaVersion"`
+	RequestID         string             `json:"requestId"`
+	Revision          string             `json:"revision"`
+	Summary           string             `json:"summary"`
+	Signals           []Signal           `json:"signals"`
+	Recommendations   []string           `json:"recommendations"`
+	ConversationPlans []ConversationPlan `json:"conversationPlans,omitempty"`
 }
 
 func Revision(rs []Response) string {

@@ -59,9 +59,9 @@ def settings() -> tuple[str, str, str]:
     return endpoint, key, os.getenv("LLM_MODEL", "qwen/qwen3.6-flash")
 
 
-def _request(endpoint: str, key: str, payload: dict) -> dict:
+def _request(endpoint: str, key: str, payload: dict, timeout: float = 20) -> dict:
     try:
-        with httpx.Client(timeout=httpx.Timeout(20, connect=5), follow_redirects=False) as client:
+        with httpx.Client(timeout=httpx.Timeout(timeout, connect=min(5, timeout)), follow_redirects=False) as client:
             # Streaming the bytes bounds an unexpected/malformed upstream body.
             with client.stream("POST", endpoint, headers={"Authorization": "Bearer " + key},
                                json=payload) as response:
@@ -79,6 +79,27 @@ def _request(endpoint: str, key: str, payload: dict) -> dict:
         raise HTTPException(504, "LLM request timed out") from None
     except (httpx.RequestError, ValueError):
         raise HTTPException(502, "LLM connection or JSON error") from None
+
+
+def request_json(prompt: str, data, timeout: float = 8) -> dict:
+    endpoint, key, model = settings()
+    result = _request(endpoint, key, {
+        "model": model, "temperature": 0.1, "max_tokens": 6000,
+        "messages": [{"role": "system", "content": prompt},
+                     {"role": "user", "content": json.dumps(data, ensure_ascii=False)}],
+        "response_format": {"type": "json_object"}, "stream": False,
+        "reasoning": {"enabled": False, "exclude": True},
+    }, timeout=timeout)
+    try:
+        choice = result["choices"][0]
+        if choice.get("finish_reason") != "stop":
+            raise ValueError("incomplete response")
+        content = json.loads(choice["message"]["content"])
+        if not isinstance(content, dict):
+            raise ValueError("expected object")
+        return content
+    except (KeyError, IndexError, TypeError, ValueError):
+        raise HTTPException(502, "LLM returned invalid insights JSON") from None
 
 
 def generate(history: list[dict]) -> dict:

@@ -232,5 +232,31 @@ func (s *Store) Queue(ctx context.Context, id string) (string, error) {
 	// HTTP headers must be ASCII: participant IDs may contain Cyrillic.
 	job := "analysis:" + digest(id+":"+rev)
 	_, err = s.DB.ExecContext(ctx, "INSERT OR IGNORE INTO jobs(id,intern_id,revision,state,created_at) VALUES(?,?,?,'pending',?)", job, id, rev, stamp())
+	if err != nil {
+		return "", err
+	}
+	err = s.DB.QueryRowContext(ctx, "SELECT id FROM jobs WHERE intern_id=? AND revision=?", id, rev).Scan(&job)
 	return job, err
+}
+
+// Explicit HR refresh uses a new ASCII request ID, so a result cached by an
+// older Python version does not prevent enrichment. Active jobs are reused.
+func (s *Store) RequestAnalysis(ctx context.Context, id string) (string, error) {
+	job, err := s.Queue(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	fresh := "analysis:" + randomID()
+	result, err := s.DB.ExecContext(ctx, "UPDATE jobs SET id=?,state='pending',attempts=0,next_at=0,last_error='',created_at=? WHERE id=? AND state IN ('done','failed')", fresh, stamp(), job)
+	if err != nil {
+		return "", err
+	}
+	n, err := result.RowsAffected()
+	if err != nil {
+		return "", err
+	}
+	if n > 0 {
+		return fresh, nil
+	}
+	return job, nil
 }

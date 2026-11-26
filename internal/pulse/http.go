@@ -254,12 +254,21 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	}
 	p, _ := s.Store.Person(r.Context(), id)
 	rules := Rules(rs, month)
+	hidden := []Signal{}
+	plans := []ConversationPlan{}
+	if identity(r).Role == "hr" {
+		hidden = append(hidden, hiddenSignalsForMonth(a, rs, month)...)
+		plans = conversationPlansForMonth(a, rs, month)
+	} else {
+		a = publicAnalysis(a)
+	}
 	timeline := []any{}
 	for m := 1; m <= 6; m++ {
 		timeline = append(timeline, map[string]any{"month": m, "signals": Rules(rs, m)})
 	}
 	// Original mentor questionnaire comments are visible to its own intern by product policy.
-	writeJSON(w, 200, map[string]any{"person": p, "responses": rs, "feedback": fb, "month": month, "ruleSignals": rules, "timeline": timeline, "status": profileStatus(rs, month, rules), "ai": a, "aiState": state, "revision": Revision(rs)})
+	active := append(append([]Signal{}, rules...), hidden...)
+	writeJSON(w, 200, map[string]any{"person": p, "responses": rs, "feedback": fb, "month": month, "ruleSignals": rules, "hiddenSignals": hidden, "conversationPlans": plans, "timeline": timeline, "status": profileStatus(rs, month, active), "ai": a, "aiState": state, "revision": Revision(rs)})
 }
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	month, err := selectedMonth(r)
@@ -314,6 +323,14 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 			submitted++
 		}
 		signals := Rules(rs, month)
+		if len(rs) > 0 {
+			a, _, err := s.Store.Analysis(r.Context(), p.ID, rs)
+			if err != nil {
+				s.internal(w, err)
+				return
+			}
+			signals = append(signals, hiddenSignalsForMonth(a, rs, month)...)
+		}
 		st := status(signals)
 		if !intern || !mentor || !complete {
 			missing++
@@ -427,7 +444,7 @@ func (s *Server) analyze(w http.ResponseWriter, r *http.Request) {
 		problem(w, 503, "Python-агент не подключен: задайте AGENT_URL")
 		return
 	}
-	job, err := s.Store.Queue(r.Context(), id)
+	job, err := s.Store.RequestAnalysis(r.Context(), id)
 	if err != nil {
 		s.internal(w, err)
 		return

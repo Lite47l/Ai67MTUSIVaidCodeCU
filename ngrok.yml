@@ -1,0 +1,9 @@
+version: "3"
+agent:
+  web_addr: 0.0.0.0:4040
+  web_allow_hosts:
+    - localhost
+    - 127.0.0.1
+  inspect_db_size: -1
+  log: stdout
+  log_format: json

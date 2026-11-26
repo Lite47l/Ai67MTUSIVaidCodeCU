@@ -593,7 +593,8 @@
               "type": "string"
             }
           }
-        ]
+        ],
+        "description": "Явный пересчет: завершенное/ошибочное задание получает новый requestId; активное задание переиспользуется. Исходные ответы не меняются."
       }
     },
     "/api/v1/hr/jobs/{id}/retry": {
@@ -1462,6 +1463,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "conversationPlans": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+              "$ref": "#/components/schemas/ConversationPlan"
+            }
           }
         },
         "required": [
@@ -1546,6 +1554,21 @@
           },
           "revision": {
             "type": "string"
+          },
+          "hiddenSignals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Signal"
+            },
+            "description": "Только HR; месяц выбран запросом"
+          },
+          "conversationPlans": {
+            "type": "array",
+            "maxItems": 6,
+            "items": {
+              "$ref": "#/components/schemas/ConversationPlan"
+            },
+            "description": "Только HR; AI-план или числовой шаблон без модели"
           }
         },
         "required": [
@@ -1558,7 +1581,9 @@
           "status",
           "ai",
           "aiState",
-          "revision"
+          "revision",
+          "hiddenSignals",
+          "conversationPlans"
         ],
         "additionalProperties": false
       },
@@ -1603,6 +1628,62 @@
           "closedAt"
         ],
         "additionalProperties": false
+      },
+      "ConversationPlan": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "month",
+          "situation",
+          "evidenceIds",
+          "questions",
+          "actionType",
+          "mentorMessage"
+        ],
+        "properties": {
+          "month": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
+          "situation": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "evidenceIds": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 8,
+            "items": {
+              "type": "string"
+            },
+            "description": "eventId#field; все ссылки относятся к месяцу плана"
+          },
+          "questions": {
+            "type": "array",
+            "minItems": 3,
+            "maxItems": 3,
+            "items": {
+              "type": "string",
+              "maxLength": 300
+            }
+          },
+          "actionType": {
+            "enum": [
+              "weekly_1on1",
+              "reduce_load",
+              "clarify_tasks",
+              "hr_talk",
+              "other"
+            ]
+          },
+          "mentorMessage": {
+            "type": "string",
+            "maxLength": 1000,
+            "description": "Фиксированный нейтральный шаблон; не отправляется автоматически"
+          }
+        }
       }
     },
     "securitySchemes": {

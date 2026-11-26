@@ -1,6 +1,9 @@
 services:
   app:
     build: .
+    depends_on:
+      agent:
+        condition: service_healthy
     ports:
       - "127.0.0.1:8080:8080"
     volumes:
@@ -18,15 +21,38 @@ services:
     restart: unless-stopped
     init: true
   agent:
-    profiles: [ai]
     build: ./agent
+    volumes:
+      - agent-cache:/app/cache
     environment:
       AGENT_TOKEN: ${AGENT_TOKEN:-}
       AGENT_REFERENCE_MODE: ${AGENT_REFERENCE_MODE:-0}
       LLM_BASE_URL: ${LLM_BASE_URL:-https://llm-proxy.spirit.culab.ru}
       LLM_MODEL: ${LLM_MODEL:-qwen/qwen3.6-flash}
       LLM_API_KEY: ${LLM_API_KEY:-}
+      AGENT_LABEL_CACHE: /app/cache/comment-labels.json
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=2)"]
+      interval: 5s
+      timeout: 3s
+      start_period: 10s
+      retries: 12
+    restart: unless-stopped
+    init: true
+  ngrok:
+    image: ngrok/ngrok:latest
+    command: ["http", "http://app:8080", "--config=/etc/ngrok.yml"]
+    environment:
+      NGROK_AUTHTOKEN: ${NGROK_AUTHTOKEN:-}
+    volumes:
+      - ./ngrok.yml:/etc/ngrok.yml:ro
+    ports:
+      - "127.0.0.1:4040:4040"
+    depends_on:
+      app:
+        condition: service_healthy
     restart: unless-stopped
     init: true
 volumes:
   pulse-data:
+  agent-cache:
