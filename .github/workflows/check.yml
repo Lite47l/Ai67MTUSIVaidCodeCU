@@ -1,0 +1,24 @@
+name: checks
+on: [push, pull_request]
+jobs:
+  go:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.x'
+      # Public CI does not contain the supplied dataset. Provide a sanitized
+      # fixture in a private repository before enabling data-dependent tests.
+      - run: go test ./... -run 'TestExcelRoundTripAndBlank|TestFeedbackVisibleToOwnIntern' -count=1
+      - run: go vet ./...
+      - run: go build ./cmd/server
+  agent:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r agent/requirements.txt pytest httpx
+      - run: pytest agent

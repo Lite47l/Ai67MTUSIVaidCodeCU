@@ -1,0 +1,29 @@
+services:
+  app:
+    build: .
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - pulse-data:/app/storage
+    environment:
+      WEBHOOK_SECRET: ${WEBHOOK_SECRET:-}
+      TALLY_SIGNING_SECRET: ${TALLY_SIGNING_SECRET:-}
+      TALLY_INTERN_FORM_ID: ${TALLY_INTERN_FORM_ID:-}
+      TALLY_MENTOR_FORM_ID: ${TALLY_MENTOR_FORM_ID:-}
+      INTERN_FORM_URL: ${INTERN_FORM_URL:-}
+      MENTOR_FORM_URL: ${MENTOR_FORM_URL:-}
+      AGENT_URL: ${AGENT_URL:-}
+      AGENT_TOKEN: ${AGENT_TOKEN:-}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+    restart: unless-stopped
+    init: true
+  agent:
+    profiles: [ai]
+    build: ./agent
+    environment:
+      AGENT_TOKEN: ${AGENT_TOKEN:-}
+      AGENT_REFERENCE_MODE: ${AGENT_REFERENCE_MODE:-0}
+    restart: unless-stopped
+    init: true
+volumes:
+  pulse-data:

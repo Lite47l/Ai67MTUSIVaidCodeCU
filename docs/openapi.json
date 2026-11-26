@@ -1,0 +1,1669 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "МГТС Пульс стажировки Go API",
+    "version": "1.0.0",
+    "description": "JSON camelCase. 409 — конфликт слота/измененный eventId; 422 — валидация. Бизнес-права дополнительно проверяются по привязке участника. Cross-origin cookie mutations запрещены."
+  },
+  "servers": [
+    {
+      "url": "http://127.0.0.1:8080"
+    }
+  ],
+  "paths": {
+    "/healthz": {
+      "get": {
+        "summary": "Жизнеспособность",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/readyz": {
+      "get": {
+        "summary": "Готовность SQLite",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": []
+      }
+    },
+    "/api/v1/auth/login": {
+      "post": {
+        "summary": "Вход",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Identity"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "username": {
+                    "type": "string"
+                  },
+                  "password": {
+                    "type": "string",
+                    "format": "password"
+                  }
+                },
+                "required": [
+                  "username",
+                  "password"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/auth/logout": {
+      "post": {
+        "summary": "Выход и отзыв сессии",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/me": {
+      "get": {
+        "summary": "Текущая учетная запись",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Identity"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/schema": {
+      "get": {
+        "summary": "Схема анкет и доступный реестр участников",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ]
+      }
+    },
+    "/api/v1/hr/overview": {
+      "get": {
+        "summary": "Сводка и числовой светофор",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ],
+        "parameters": [
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6,
+              "default": 6
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/hr/interns/{id}": {
+      "get": {
+        "summary": "История, комментарии, сигналы и обратная связь",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6,
+              "default": 6
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/mentor/interns/{id}": {
+      "get": {
+        "summary": "История, комментарии, сигналы и обратная связь",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "mentor"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6,
+              "default": 6
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/intern/interns/{id}": {
+      "get": {
+        "summary": "История, комментарии, сигналы и обратная связь",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Profile"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "intern"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6,
+              "default": 6
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/responses": {
+      "post": {
+        "summary": "Ответ из авторизованного кабинета; eventId идемпотентен",
+        "responses": {
+          "201": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Идемпотентный повтор"
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr",
+          "mentor",
+          "intern"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Response"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/mentor/interns/{id}/feedback": {
+      "post": {
+        "summary": "Публикация обратной связи для стажера",
+        "responses": {
+          "201": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Feedback"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "mentor"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "month": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 6
+                  },
+                  "text": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "month",
+                  "text"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/hr/enrollments": {
+      "post": {
+        "summary": "Регистрация нового участника",
+        "responses": {
+          "201": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Person"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hr/interns/{id}/analysis": {
+      "post": {
+        "summary": "Запрос анализа актуальной ревизии",
+        "responses": {
+          "202": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/hr/jobs/{id}/retry": {
+      "post": {
+        "summary": "Повтор failed-задания",
+        "responses": {
+          "202": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/hr/integrations": {
+      "get": {
+        "summary": "Последние 50 доставок и заданий",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ]
+      }
+    },
+    "/api/v1/hr/export": {
+      "get": {
+        "summary": "JSON-выгрузка исходных ответов без raw",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Response"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ]
+      }
+    },
+    "/api/v1/hr/actions": {
+      "get": {
+        "summary": "Последние 200 мер поддержки",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Action"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ]
+      },
+      "post": {
+        "summary": "Регистрация меры поддержки",
+        "responses": {
+          "201": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Action"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "internId": {
+                    "type": "string"
+                  },
+                  "note": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "internId",
+                  "note"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hr/actions/{id}": {
+      "patch": {
+        "summary": "Закрытие меры поддержки",
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "x-roles": [
+          "hr"
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "status": {
+                    "const": "closed"
+                  }
+                },
+                "required": [
+                  "status"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ]
+      }
+    },
+    "/api/v1/integrations/responses": {
+      "post": {
+        "summary": "Нормализованный webhook",
+        "responses": {
+          "201": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Идемпотентный повтор"
+          }
+        },
+        "security": [
+          {
+            "integrationBearer": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Response"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/integrations/tally": {
+      "post": {
+        "summary": "Tally webhook; подписан по исходным байтам JSON",
+        "responses": {
+          "201": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "200": {
+            "description": "Идемпотентный повтор"
+          }
+        },
+        "security": [
+          {
+            "tallySignature": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "eventId": {
+                    "type": "string"
+                  },
+                  "eventType": {
+                    "const": "FORM_RESPONSE"
+                  },
+                  "data": {
+                    "type": "object",
+                    "properties": {
+                      "formId": {
+                        "type": "string"
+                      },
+                      "fields": {
+                        "type": "array",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "label": {
+                              "type": "string"
+                            },
+                            "value": {}
+                          },
+                          "required": [
+                            "label",
+                            "value"
+                          ],
+                          "additionalProperties": true
+                        }
+                      }
+                    },
+                    "required": [
+                      "formId",
+                      "fields"
+                    ],
+                    "additionalProperties": true
+                  }
+                },
+                "required": [
+                  "eventId",
+                  "eventType",
+                  "data"
+                ],
+                "additionalProperties": true
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "InternResponse": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 160
+          },
+          "programId": {
+            "const": "mgts-internship"
+          },
+          "internId": {
+            "type": "string"
+          },
+          "department": {
+            "type": "string"
+          },
+          "month": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
+          "source": {
+            "const": "intern"
+          },
+          "scores": {
+            "type": "object",
+            "properties": {
+              "taskClarity": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "mentorSupport": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "workload": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "interest": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "development": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "teamwork": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "satisfaction": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              }
+            },
+            "required": [
+              "taskClarity",
+              "mentorSupport",
+              "workload",
+              "interest",
+              "development",
+              "teamwork",
+              "satisfaction"
+            ],
+            "additionalProperties": false
+          },
+          "comments": {
+            "type": "object",
+            "properties": {
+              "difficulties": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "barriers": {
+                "type": "string",
+                "maxLength": 10000
+              }
+            },
+            "required": [
+              "difficulties",
+              "barriers"
+            ],
+            "additionalProperties": false
+          },
+          "receivedAt": {
+            "type": "string"
+          },
+          "raw": {}
+        },
+        "required": [
+          "eventId",
+          "programId",
+          "internId",
+          "department",
+          "month",
+          "source",
+          "scores",
+          "comments"
+        ],
+        "additionalProperties": false
+      },
+      "MentorResponse": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string",
+            "minLength": 3,
+            "maxLength": 160
+          },
+          "programId": {
+            "const": "mgts-internship"
+          },
+          "internId": {
+            "type": "string"
+          },
+          "department": {
+            "type": "string"
+          },
+          "month": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
+          "source": {
+            "const": "mentor"
+          },
+          "scores": {
+            "type": "object",
+            "properties": {
+              "taskUnderstanding": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "quality": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "independence": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "deadlines": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "initiative": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              },
+              "communication": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1,
+                "maximum": 5
+              }
+            },
+            "required": [
+              "taskUnderstanding",
+              "quality",
+              "independence",
+              "deadlines",
+              "initiative",
+              "communication"
+            ],
+            "additionalProperties": false
+          },
+          "comments": {
+            "type": "object",
+            "properties": {
+              "feedback": {
+                "type": "string",
+                "maxLength": 10000
+              },
+              "attention": {
+                "type": "string",
+                "maxLength": 10000
+              }
+            },
+            "required": [
+              "feedback",
+              "attention"
+            ],
+            "additionalProperties": false
+          },
+          "receivedAt": {
+            "type": "string"
+          },
+          "raw": {},
+          "mentorId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId",
+          "programId",
+          "internId",
+          "department",
+          "month",
+          "source",
+          "scores",
+          "comments",
+          "mentorId"
+        ],
+        "additionalProperties": false
+      },
+      "Response": {
+        "oneOf": [
+          {
+            "$ref": "#/components/schemas/InternResponse"
+          },
+          {
+            "$ref": "#/components/schemas/MentorResponse"
+          }
+        ]
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "Identity": {
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "hr",
+              "mentor",
+              "intern"
+            ]
+          },
+          "subject": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "role",
+          "subject"
+        ],
+        "additionalProperties": false
+      },
+      "Person": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "department": {
+            "type": "string"
+          },
+          "mentorId": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "department",
+          "mentorId"
+        ],
+        "additionalProperties": false
+      },
+      "Feedback": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "internId": {
+            "type": "string"
+          },
+          "mentorId": {
+            "type": "string"
+          },
+          "month": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
+          "text": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "internId",
+          "mentorId",
+          "month",
+          "text",
+          "publishedAt"
+        ],
+        "additionalProperties": false
+      },
+      "Evidence": {
+        "type": "object",
+        "properties": {
+          "eventId": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "value": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "eventId",
+          "field",
+          "value"
+        ],
+        "additionalProperties": false
+      },
+      "Signal": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "severity": {
+            "enum": [
+              "positive",
+              "attention",
+              "critical"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Evidence"
+            }
+          }
+        },
+        "required": [
+          "id",
+          "kind",
+          "severity",
+          "title",
+          "evidence"
+        ],
+        "additionalProperties": false
+      },
+      "Analysis": {
+        "type": "object",
+        "properties": {
+          "schemaVersion": {
+            "const": "1.0"
+          },
+          "requestId": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "summary": {
+            "type": "string"
+          },
+          "signals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Signal"
+            }
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "requestId",
+          "revision",
+          "summary",
+          "signals",
+          "recommendations"
+        ],
+        "additionalProperties": false
+      },
+      "Profile": {
+        "type": "object",
+        "properties": {
+          "person": {
+            "$ref": "#/components/schemas/Person"
+          },
+          "responses": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Response"
+            }
+          },
+          "feedback": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Feedback"
+            }
+          },
+          "month": {
+            "type": "integer"
+          },
+          "ruleSignals": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Signal"
+            }
+          },
+          "timeline": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "month": {
+                  "type": "integer"
+                },
+                "signals": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Signal"
+                  }
+                }
+              },
+              "required": [
+                "month",
+                "signals"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "status": {
+            "enum": [
+              "positive",
+              "attention",
+              "critical",
+              "missing"
+            ]
+          },
+          "ai": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Analysis"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "aiState": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "person",
+          "responses",
+          "feedback",
+          "month",
+          "ruleSignals",
+          "timeline",
+          "status",
+          "ai",
+          "aiState",
+          "revision"
+        ],
+        "additionalProperties": false
+      },
+      "Action": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "internId": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "note": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "open",
+              "closed"
+            ]
+          },
+          "createdAt": {
+            "type": "string"
+          },
+          "closedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "internId",
+          "owner",
+          "note",
+          "status",
+          "createdAt",
+          "closedAt"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "cookieAuth": {
+        "type": "apiKey",
+        "in": "cookie",
+        "name": "mgts_session"
+      },
+      "integrationBearer": {
+        "type": "http",
+        "scheme": "bearer"
+      },
+      "tallySignature": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Tally-Signature",
+        "description": "Base64 HMAC-SHA256 raw JSON body with TALLY_SIGNING_SECRET"
+      }
+    }
+  }
+}

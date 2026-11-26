@@ -1,0 +1,10 @@
+.git
+.env
+bin
+*.zip
+*.xlsx
+*.docx
+data/*.db*
+.venv
+**/__pycache__
+**/.pytest_cache

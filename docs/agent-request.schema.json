@@ -1,0 +1,146 @@
+{
+  "$defs": {
+    "Response": {
+      "additionalProperties": false,
+      "properties": {
+        "eventId": {
+          "maxLength": 160,
+          "minLength": 3,
+          "title": "Eventid",
+          "type": "string"
+        },
+        "programId": {
+          "const": "mgts-internship",
+          "title": "Programid",
+          "type": "string"
+        },
+        "internId": {
+          "title": "Internid",
+          "type": "string"
+        },
+        "mentorId": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mentorid"
+        },
+        "department": {
+          "title": "Department",
+          "type": "string"
+        },
+        "month": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Month",
+          "type": "integer"
+        },
+        "source": {
+          "enum": [
+            "intern",
+            "mentor"
+          ],
+          "title": "Source",
+          "type": "string"
+        },
+        "scores": {
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "title": "Scores",
+          "type": "object"
+        },
+        "comments": {
+          "additionalProperties": {
+            "type": "string"
+          },
+          "title": "Comments",
+          "type": "object"
+        },
+        "receivedAt": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Receivedat"
+        }
+      },
+      "required": [
+        "eventId",
+        "programId",
+        "internId",
+        "department",
+        "month",
+        "source",
+        "scores",
+        "comments"
+      ],
+      "title": "Response",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "schemaVersion": {
+      "const": "1.0",
+      "title": "Schemaversion",
+      "type": "string"
+    },
+    "requestId": {
+      "maxLength": 256,
+      "minLength": 1,
+      "title": "Requestid",
+      "type": "string"
+    },
+    "revision": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Revision",
+      "type": "string"
+    },
+    "programId": {
+      "const": "mgts-internship",
+      "title": "Programid",
+      "type": "string"
+    },
+    "internId": {
+      "title": "Internid",
+      "type": "string"
+    },
+    "history": {
+      "items": {
+        "$ref": "#/$defs/Response"
+      },
+      "maxItems": 12,
+      "minItems": 1,
+      "title": "History",
+      "type": "array"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "requestId",
+    "revision",
+    "programId",
+    "internId",
+    "history"
+  ],
+  "title": "AnalyzeRequest",
+  "type": "object"
+}
