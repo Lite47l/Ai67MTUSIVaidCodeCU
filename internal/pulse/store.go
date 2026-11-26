@@ -44,7 +44,7 @@ func (s *Store) Migrate(ctx context.Context) error {
 }
 
 func (s *Store) UpgradeHRTasks(ctx context.Context) error {
-	_, err := s.DB.ExecContext(ctx, hrTaskSchema)
+	_, err := s.DB.ExecContext(ctx, hrTaskSchema+"\n"+huntflowSchema)
 	return err
 }
 

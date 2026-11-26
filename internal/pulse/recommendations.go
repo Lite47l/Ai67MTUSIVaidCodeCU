@@ -7,14 +7,15 @@ import (
 )
 
 type Recommendation struct {
-	ID         string        `json:"id"`
-	Month      int           `json:"month"`
-	ActionType string        `json:"actionType"`
-	Audience   string        `json:"audience"`
-	Title      string        `json:"title"`
-	Reason     string        `json:"reason"`
-	Questions  []string      `json:"questions"`
-	Delivery   *TaskDelivery `json:"delivery,omitempty"`
+	HuntflowDelivery *TaskDelivery `json:"huntflowDelivery,omitempty"`
+	ID               string        `json:"id"`
+	Month            int           `json:"month"`
+	ActionType       string        `json:"actionType"`
+	Audience         string        `json:"audience"`
+	Title            string        `json:"title"`
+	Reason           string        `json:"reason"`
+	Questions        []string      `json:"questions"`
+	Delivery         *TaskDelivery `json:"delivery,omitempty"`
 }
 
 type recommendationTemplate struct {

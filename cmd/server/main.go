@@ -113,6 +113,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	huntflow, err := pulse.NewHuntflowClient(os.Getenv("HUNTFLOW_BASE_URL"), os.Getenv("HUNTFLOW_ACCESS_TOKEN"), os.Getenv("HUNTFLOW_ACCOUNT_ID"), store)
+	if err != nil {
+		return err
+	}
 	agentURL := os.Getenv("AGENT_URL")
 	agentToken := os.Getenv("AGENT_TOKEN")
 	if agentURL != "" {
@@ -133,7 +137,7 @@ func run() error {
 		return errors.New("Tally form IDs must differ")
 	}
 	secure := strings.EqualFold(os.Getenv("COOKIE_SECURE"), "true")
-	app := &pulse.Server{Store: store, AgentURL: agentURL, WebhookSecret: os.Getenv("WEBHOOK_SECRET"), TallySecret: os.Getenv("TALLY_SIGNING_SECRET"), InternFormID: os.Getenv("TALLY_INTERN_FORM_ID"), MentorFormID: os.Getenv("TALLY_MENTOR_FORM_ID"), InternFormURL: os.Getenv("INTERN_FORM_URL"), MentorFormURL: os.Getenv("MENTOR_FORM_URL"), SecureCookie: secure, HRTasks: hrTasks}
+	app := &pulse.Server{Store: store, AgentURL: agentURL, WebhookSecret: os.Getenv("WEBHOOK_SECRET"), TallySecret: os.Getenv("TALLY_SIGNING_SECRET"), InternFormID: os.Getenv("TALLY_INTERN_FORM_ID"), MentorFormID: os.Getenv("TALLY_MENTOR_FORM_ID"), InternFormURL: os.Getenv("INTERN_FORM_URL"), MentorFormURL: os.Getenv("MENTOR_FORM_URL"), SecureCookie: secure, HRTasks: hrTasks, Huntflow: huntflow}
 	worker := &pulse.Worker{Store: store, URL: agentURL, Token: agentToken}
 	// Startup reconciliation also recovers committed responses after a crash before queuing.
 	if agentURL != "" {

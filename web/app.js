@@ -17,6 +17,7 @@ const paths = {
   overview: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
   actions: '<rect x="4" y="4" width="16" height="17" rx="2"/><path d="M8 4V2m8 2V2m-8 11 2 2 5-5"/>',
   integrations: '<path d="M8 3v5m8-5v5M5 8h14m-2 0v3a5 5 0 0 1-10 0V8m5 8v5"/>',
+  huntflow: '<path d="M8 3v5m8-5v5M5 8h14m-2 0v3a5 5 0 0 1-10 0V8m5 8v5"/>',
   enroll: '<circle cx="9" cy="7" r="3"/><path d="M3 20v-2a5 5 0 0 1 5-5h2a5 5 0 0 1 3 1m5-5v8m-4-4h8"/>',
   survey: '<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 8h8m-8 4h8m-8 4h5"/>',
   exit: '<path d="M10 17l5-5-5-5m5 5H3m9-8h6a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-6"/>',
@@ -79,7 +80,7 @@ async function api(path, method = 'GET', body) {
 function safeLink(url,label){try{const u=new URL(url);if(!['http:','https:'].includes(u.protocol))return '';return `<a href="${E(u.href)}" target="_blank" rel="noopener noreferrer">${E(label)}</a>`}catch{return ''}}
 const drafts = new Map();
 function draftKey(id) { return JSON.stringify([S.who?.username, S.person, S.month, id]); }
-function rememberForm(form) { if (form && ['survey', 'feedback', 'action', 'enroll'].includes(form.id)) drafts.set(draftKey(form.id), Object.fromEntries(new FormData(form))); }
+function rememberForm(form) { if (form && ['survey', 'feedback', 'action', 'enroll', 'huntflow-bind'].includes(form.id)) drafts.set(draftKey(form.id), Object.fromEntries(new FormData(form))); }
 function restoreForms() {
   for (const form of root.querySelectorAll('form')) {
     const draft = drafts.get(draftKey(form.id));
@@ -99,7 +100,7 @@ function shell(content) {
   const overviewLayout = role === 'hr' && S.view === 'overview';
   const topbarLayout = overviewLayout || role !== 'hr';
   const nav = role === 'hr'
-    ? [['overview', 'Обзор'], ['actions', 'Действия HR'], ['integrations', 'Анкеты и анализ'], ['enroll', 'Новый участник']]
+    ? [['overview', 'Обзор'], ['actions', 'Действия HR'], ['integrations', 'Анкеты и анализ'], ['enroll', 'Новый участник'], ['huntflow', 'Хантфлоу']]
     : [['overview', role === 'mentor' ? 'Мои стажёры' : 'Моя стажировка'], ['survey', 'Ежемесячная анкета']];
   const activeView = S.view === 'profile' ? 'overview' : S.view;
   const brand = '<div class="brand"><span class="brandmark">МГТС</span><strong>Пульс стажировки</strong></div>';
@@ -187,6 +188,9 @@ async function render(refresh = false) {
       const list = await api('/hr/actions');
       if (isCurrent()) actions(list);
 
+    } else if (view === 'huntflow') {
+      const data = await api('/hr/integrations/huntflow');
+      if(isCurrent()) huntflowPage(data);
     } else if (view === 'enroll') {
       enroll();
     } else if (view === 'survey' || view === 'profile' || who.role === 'intern') {
@@ -523,6 +527,16 @@ function hrAnalysisHTML(d,rs){
     ${ai?.recommendations.length?`<h3>Возможные действия</h3><ul>${ai.recommendations.map(v=>`<li>${E(v)}</li>`).join('')}</ul>`:''}
     </section>${plans.map(plan=>conversationPlanHTML(plan,rs)).join('')}`;
 }
+function huntflowPage(data) {
+ shell(`${detailHead('Хантфлоу', refreshButton())}
+ <section class="detail-section"><h2>${data.configured ? E(data.accountName) : 'Подключение не задано'}</h2>
+ ${data.configured ? `<form id="huntflow-bind" class="detail-form">
+ <label>ID кандидата Хантфлоу<input name="applicantId" type="number" min="1" step="1" required></label>
+ <label>ID стажёра<input name="internId" maxlength="100" placeholder="Пусто — HF-ID кандидата"></label>
+ <label>Подразделение<input name="department" required maxlength="200"></label>
+ <label>ID наставника<input name="mentorId" required maxlength="100"></label>
+ <div><button type="submit">Добавить или связать участника</button></div></form>` : ''}</section>`);
+}
 function recommendationsHTML(data, role) {
   if (role === 'intern') return '';
   const hr = role === 'hr';
@@ -541,11 +555,18 @@ function recommendationsHTML(data, role) {
           <button type="button" class="secondary" data-hr-task="${E(item.id)}">${retry ? 'Повторить отправку' : 'Подтвердить и создать задачу'}</button>`;
       }
     }
+    if (hr && data.huntflowConfigured && data.huntflow) {
+      const sent=item.huntflowDelivery;
+      task+=sent?.state==='sent' ? `<p class="muted">Хантфлоу: запись №${E(sent.externalId)} сохранена</p>` :
+        sent?.state==='sending' ? '<p role="status">Запись передаётся в Хантфлоу.</p>' :
+        `${sent?.state==='failed' ? `<p class="error" role="alert">${E(sent.error)}</p>` : ''}<button type="button" class="secondary" data-huntflow-send="${E(item.id)}">${sent?.state==='failed'?'Повторить запись в Хантфлоу':'Подтвердить запись в Хантфлоу'}</button>`;
+    }
     return `<article class="feedback"><h3>${E(item.title)}</h3>
       ${hr ? `<small>Получатель · ${item.audience === 'mentor' ? 'Наставник' : 'HR'}</small>` : ''}
       <p>${E(item.reason)}</p><ul>${item.questions.map(question => `<li>${E(question)}</li>`).join('')}</ul>${task}</article>`;
   }).join('');
   return `<section class="detail-section"><h2 class="section-heading">${title} · месяц ${E(data.month)}</h2>
+    ${hr && data.huntflow ? `<p class="muted">Хантфлоу · организация №${E(data.huntflow.accountId)}, кандидат №${E(data.huntflow.applicantId)}</p>` : ''}
     ${cards || '<p class="muted">За выбранный месяц рекомендаций пока нет.</p>'}
 </section>`;
 }
@@ -734,7 +755,12 @@ document.addEventListener('click', async event => {
   if (!button) return;
   const {nav, person, tab, retry, close, confirmClose, act, evidence, period, openProfile, clearRating, actionSignal, hrTask} = button.dataset;
   try {
-    if (hrTask) {
+    if (button.dataset.huntflowSend) {
+      button.disabled=true;
+      try {await api('/hr/interns/'+encodeURIComponent(S.person)+'/recommendations/'+encodeURIComponent(button.dataset.huntflowSend)+'/huntflow?month='+S.month,'POST');toast('Рекомендация записана в Хантфлоу');}
+      catch(error){toast(error.message);}
+      finally{button.disabled=false;await render();}
+    } else if (hrTask) {
       button.disabled = true;
       try { await api('/hr/interns/' + encodeURIComponent(S.person) + '/recommendations/' + encodeURIComponent(hrTask) + '/confirm?month=' + S.month, 'POST'); toast('Задача отправлена'); }
       catch(error) { toast(error.message); }
@@ -875,6 +901,9 @@ document.addEventListener('submit', async event => {
       toast('Обратная связь опубликована');
       S.composingFeedback = false;
       await render();
+    } else if (formId === 'huntflow-bind') {
+      const result=await api('/hr/integrations/huntflow/participants','POST',{...values,applicantId:Number(values.applicantId)});
+      drafts.delete(draftKey('huntflow-bind'));S.person=result.internId;S.view='profile';S.tab='history';toast('Участник связан с Хантфлоу');await render();
     } else if (formId === 'enroll') {
       const person = await api('/hr/enrollments', 'POST', values);
       drafts.delete(draftKey('enroll'));

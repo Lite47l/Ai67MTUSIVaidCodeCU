@@ -35,6 +35,7 @@ type TaskDelivery struct {
 }
 
 type HRTaskClient struct {
+	huntflow *HuntflowClient
 	endpoint string
 	token    string
 	http     *http.Client
@@ -75,6 +76,9 @@ func NewHRTaskClient(endpoint, token string) (*HRTaskClient, error) {
 }
 
 func (c *HRTaskClient) create(ctx context.Context, job hrTask) (TaskDelivery, error) {
+	if c.huntflow != nil {
+		return c.huntflow.create(ctx, job)
+	}
 	body, err := json.Marshal(job)
 	if err != nil {
 		return TaskDelivery{}, errors.New("Не удалось подготовить задачу")
@@ -191,6 +195,9 @@ func (s *Server) confirmRecommendation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) deliverHRTask(ctx context.Context, job hrTask, confirmedBy string) (*TaskDelivery, error) {
+	return s.deliverTask(ctx, job, confirmedBy, s.HRTasks)
+}
+func (s *Server) deliverTask(ctx context.Context, job hrTask, confirmedBy string, client *HRTaskClient) (*TaskDelivery, error) {
 	// Continue persisting the outcome if the browser closes after HR confirmed.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 	defer cancel()
@@ -229,7 +236,7 @@ func (s *Server) deliverHRTask(ctx context.Context, job hrTask, confirmedBy stri
 	if attempt == 0 {
 		return s.Store.taskDelivery(ctx, job.ID)
 	}
-	delivery, sendErr := s.HRTasks.create(ctx, job)
+	delivery, sendErr := client.create(ctx, job)
 	if sendErr != nil {
 		delivery = TaskDelivery{State: "failed", Error: sendErr.Error()}
 	}

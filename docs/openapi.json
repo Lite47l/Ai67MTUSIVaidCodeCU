@@ -1117,6 +1117,184 @@
           }
         }
       }
+    },
+    "/api/v1/hr/integrations/huntflow": {
+      "get": {
+        "summary": "Проверить доступ к организации Хантфлоу",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Результат проверки",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "configured": {
+                      "type": "boolean"
+                    },
+                    "accountId": {
+                      "type": "integer"
+                    },
+                    "accountName": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "configured"
+                  ]
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Ошибка доступа/ответа Хантфлоу"
+          }
+        }
+      }
+    },
+    "/api/v1/hr/integrations/huntflow/participants": {
+      "post": {
+        "summary": "Создать участника или связать существующего с кандидатом Хантфлоу",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Карточка связана",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/HuntflowBinding"
+                    },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "internId": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "internId"
+                      ]
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Конфликт участника или привязки"
+          },
+          "422": {
+            "description": "Неверные поля"
+          },
+          "502": {
+            "description": "Кандидат недоступен"
+          },
+          "503": {
+            "description": "Интеграция не настроена"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/HuntflowParticipantRequest"
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/hr/interns/{id}/recommendations/{recommendation}/huntflow": {
+      "post": {
+        "summary": "Подтвердить нейтральный комментарий в личных заметках кандидата Хантфлоу",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Записано или найдено по маркеру",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDelivery"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Отправляется",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDelivery"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Ошибка доставки; проверьте перед повтором",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDelivery"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Рекомендация за этот месяц не найдена"
+          },
+          "422": {
+            "description": "Нет привязки к текущей организации или наставника"
+          },
+          "503": {
+            "description": "Хантфлоу не настроен"
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recommendation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 6,
+              "default": 6
+            }
+          }
+        ]
+      }
     }
   },
   "components": {
@@ -1695,6 +1873,21 @@
           },
           "hrTaskConfigured": {
             "type": "boolean"
+          },
+          "huntflow": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HuntflowBinding"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Только HR: привязка к кандидату"
+          },
+          "huntflowConfigured": {
+            "type": "boolean",
+            "description": "Только HR: подключена организация, совпадающая с привязкой"
           }
         },
         "required": [
@@ -1960,6 +2153,9 @@
           },
           "delivery": {
             "$ref": "#/components/schemas/TaskDelivery"
+          },
+          "huntflowDelivery": {
+            "$ref": "#/components/schemas/TaskDelivery"
           }
         },
         "required": [
@@ -1971,6 +2167,53 @@
           "reason",
           "questions"
         ]
+      },
+      "HuntflowBinding": {
+        "type": "object",
+        "properties": {
+          "accountId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "applicantId": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "required": [
+          "accountId",
+          "applicantId"
+        ]
+      },
+      "HuntflowParticipantRequest": {
+        "type": "object",
+        "properties": {
+          "applicantId": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "internId": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Пустое значение создаёт ID HF-<applicantId>"
+          },
+          "department": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "mentorId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          }
+        },
+        "required": [
+          "applicantId",
+          "department",
+          "mentorId"
+        ],
+        "additionalProperties": false
       }
     },
     "securitySchemes": {

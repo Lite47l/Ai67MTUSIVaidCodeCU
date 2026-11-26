@@ -17,6 +17,7 @@ import (
 )
 
 type Server struct {
+	Huntflow                                                                                       *HuntflowClient
 	HRTasks                                                                                        *HRTaskClient
 	Store                                                                                          *Store
 	AgentURL, WebhookSecret, TallySecret, InternFormID, MentorFormID, InternFormURL, MentorFormURL string
@@ -103,6 +104,9 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 		}
 		writeJSON(w, 200, map[string]any{"programId": Program, "people": people, "internFields": InternFields, "mentorFields": MentorFields, "labels": Labels, "internFormUrl": s.InternFormURL, "mentorFormUrl": s.MentorFormURL})
 	}))
+	mux.HandleFunc("GET /api/v1/hr/integrations/huntflow", s.auth("hr", s.huntflowStatus))
+	mux.HandleFunc("POST /api/v1/hr/integrations/huntflow/participants", s.auth("hr", s.bindHuntflow))
+	mux.HandleFunc("POST /api/v1/hr/interns/{id}/recommendations/{recommendation}/huntflow", s.auth("hr", s.confirmHuntflow))
 	mux.HandleFunc("POST /api/v1/hr/enrollments", s.auth("hr", s.enroll))
 	mux.HandleFunc("POST /api/v1/hr/interns/{id}/recommendations/{recommendation}/confirm", s.auth("hr", s.confirmRecommendation))
 	mux.HandleFunc("GET /api/v1/hr/overview", s.auth("hr", s.overview))
@@ -290,6 +294,23 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				s.internal(w, err)
 				return
+			}
+		}
+
+		binding, err := s.Store.huntflowBinding(r.Context(), id)
+		if err != nil {
+			s.internal(w, err)
+			return
+		}
+		payload["huntflow"] = binding
+		payload["huntflowConfigured"] = s.Huntflow != nil && binding != nil && binding.AccountID == s.Huntflow.account
+		if binding != nil && s.Huntflow != nil && binding.AccountID == s.Huntflow.account {
+			for i := range recommendations {
+				recommendations[i].HuntflowDelivery, err = s.Store.taskDelivery(r.Context(), huntflowDeliveryID(recommendations[i].ID, binding))
+				if err != nil {
+					s.internal(w, err)
+					return
+				}
 			}
 		}
 		payload["recommendations"] = recommendations
