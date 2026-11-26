@@ -1,0 +1,31 @@
+{
+	admin 127.0.0.1:20191
+}
+
+http://127.0.0.1:18765 {
+	bind 127.0.0.1
+
+	@health {
+		method GET
+		path /healthz
+	}
+	handle @health {
+		header Content-Type application/json
+		header Cache-Control no-store
+		respond "{\"component\":\"qa-ingress\",\"status\":\"ok\"}" 200
+	}
+
+	@webhook {
+		method POST
+		path {$QA_WEBHOOK_PATHS:/__qa_webhook_disabled__}
+		not path /__qa_webhook_disabled__ /api/v1/responses
+	}
+	handle @webhook {
+		request_body {
+			max_size 1MB
+		}
+		reverse_proxy 127.0.0.1:8000
+	}
+
+	respond 404
+}
