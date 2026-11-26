@@ -1,0 +1,51 @@
+{
+  "program_id": "demo-a01",
+  "intern_id": "DEMO-001",
+  "period": 4,
+  "responses": [
+    {
+      "source_event_id": "demo-provider:a01-low-workload",
+      "program_id": "demo-a01",
+      "intern_id": "DEMO-001",
+      "mentor_id": null,
+      "department": "HR-блок",
+      "period": 4,
+      "source": "intern",
+      "scores": {
+        "task_clarity": 5,
+        "mentor_support": 5,
+        "workload_comfort": 2,
+        "task_interest": 5,
+        "professional_growth": 5,
+        "team_interaction": 5,
+        "overall_satisfaction": 4
+      },
+      "comments": {
+        "period_difficulties": "Выполнял задачи проекта.",
+        "work_barriers": "Дополнений нет."
+      },
+      "submitted_at": "2026-11-26T12:00:00+03:00"
+    }
+  ],
+  "expected_signals": [
+    {
+      "id": "9916526d4f80cc17b211630d",
+      "intern_id": "DEMO-001",
+      "period": 4,
+      "kind": "low_score",
+      "status": "critical",
+      "title": "Низкая оценка: комфортность нагрузки",
+      "explanation": "Оценка 2/5 попадает в критичный диапазон 1–2.",
+      "evidence": [
+        {
+          "source": "intern",
+          "period": 4,
+          "field": "workload_comfort",
+          "value": 2,
+          "quote": null
+        }
+      ],
+      "next_step": "Уточнить распределение задач и сроки с участниками."
+    }
+  ]
+}
