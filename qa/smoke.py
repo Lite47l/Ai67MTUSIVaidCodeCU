@@ -212,18 +212,21 @@ def check_evidence(profiles, expected):
                 require((has_value or has_quote) and (not citation or has_quote),
                         f"{tag}: evidence value or quote cannot be traced to Excel")
 
-    for intern, field, periods in (
-        (WORKLOAD, "workload_comfort", {4}),
-        ("СТ-003", "mentor_support", {2, 3}),
-        ("СТ-005", "mentor_support", {1, 2, 3}),
+    for intern, kind, field, month, evidence_months in (
+        (WORKLOAD, "low_score", "workload_comfort", 4, {4}),
+        ("СТ-003", "repeated_issue", "mentor_support", 3, {2, 3}),
+        ("СТ-005", "repeated_issue", "mentor_support", 3, {2, 3}),
     ):
-        observed = {
-            item["period"] for signal in profiles[intern]["signals"]
-            for item in signal["evidence"]
-            if item["source"] == "intern" and item.get("field") == field and item.get("value") == 2
-        }
-        require(len(observed & periods) >= min(2, len(periods)),
-                f"{intern}: missing evidence of the historical low/repeated {field}")
+        candidates = [
+            {
+                item["period"] for item in signal["evidence"]
+                if item["source"] == "intern" and item.get("field") == field and item.get("value") == 2
+            }
+            for signal in profiles[intern]["signals"]
+            if signal["kind"] == kind and signal["period"] == month
+        ]
+        require(any(evidence_months <= observed for observed in candidates),
+                f"{intern} month {month}: expected {kind}/{field} with evidence from {sorted(evidence_months)}")
 
 
 def check_current(profiles, queue):
