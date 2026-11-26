@@ -245,13 +245,26 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, err)
 		return
 	}
-	a, state, err := s.Store.Analysis(r.Context(), id, rs)
-	if err != nil {
-		s.internal(w, err)
-		return
-	}
-	if s.AgentURL == "" {
-		state = "not_connected"
+	var a *Analysis
+	state := ""
+	if identity(r).Role == "hr" {
+		a, state, err = s.Store.Analysis(r.Context(), id, rs)
+		if err != nil {
+			s.internal(w, err)
+			return
+		}
+		if s.AgentURL == "" && a == nil {
+			state = "not_connected"
+		}
+		if a != nil {
+			plans := []ConversationPlan{}
+			for _, plan := range a.ConversationPlans {
+				if plan.Month == month {
+					plans = append(plans, plan)
+				}
+			}
+			a.ConversationPlans = plans
+		}
 	}
 	p, _ := s.Store.Person(r.Context(), id)
 	rules := Rules(rs, month)
@@ -260,7 +273,8 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 		timeline = append(timeline, map[string]any{"month": m, "signals": Rules(rs, m)})
 	}
 	// Original mentor questionnaire comments are visible to its own intern by product policy.
-	writeJSON(w, 200, map[string]any{"person": p, "responses": rs, "feedback": fb, "month": month, "ruleSignals": rules, "timeline": timeline, "status": profileStatus(rs, month, rules), "ai": a, "aiState": state, "revision": Revision(rs)})
+	active := append(append([]Signal{}, rules...), hiddenSignalsForMonth(a, rs, month)...)
+	writeJSON(w, 200, map[string]any{"person": p, "responses": rs, "feedback": fb, "month": month, "ruleSignals": rules, "timeline": timeline, "status": profileStatus(rs, month, active), "ai": a, "aiState": state, "revision": Revision(rs)})
 }
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	month, err := selectedMonth(r)
@@ -315,6 +329,14 @@ func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 			submitted++
 		}
 		signals := Rules(rs, month)
+		if len(rs) > 0 {
+			a, _, err := s.Store.Analysis(r.Context(), p.ID, rs)
+			if err != nil {
+				s.internal(w, err)
+				return
+			}
+			signals = append(signals, hiddenSignalsForMonth(a, rs, month)...)
+		}
 		st := status(signals)
 		if !intern || !mentor || !complete {
 			missing++

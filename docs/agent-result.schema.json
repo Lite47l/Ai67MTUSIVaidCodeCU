@@ -1,5 +1,67 @@
 {
   "$defs": {
+    "ConversationPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "month": {
+          "maximum": 6,
+          "minimum": 1,
+          "title": "Month",
+          "type": "integer"
+        },
+        "situation": {
+          "maxLength": 500,
+          "minLength": 1,
+          "title": "Situation",
+          "type": "string"
+        },
+        "evidenceIds": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Evidenceids",
+          "type": "array"
+        },
+        "questions": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 3,
+          "title": "Questions",
+          "type": "array"
+        },
+        "actionType": {
+          "enum": [
+            "weekly_1on1",
+            "reduce_load",
+            "clarify_tasks",
+            "hr_talk",
+            "other"
+          ],
+          "title": "Actiontype",
+          "type": "string"
+        },
+        "mentorMessage": {
+          "maxLength": 1000,
+          "minLength": 1,
+          "title": "Mentormessage",
+          "type": "string"
+        }
+      },
+      "required": [
+        "month",
+        "situation",
+        "evidenceIds",
+        "questions",
+        "actionType",
+        "mentorMessage"
+      ],
+      "title": "ConversationPlan",
+      "type": "object"
+    },
     "Evidence": {
       "additionalProperties": false,
       "properties": {
@@ -111,6 +173,22 @@
       "maxItems": 20,
       "title": "Recommendations",
       "type": "array"
+    },
+    "conversationPlans": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/ConversationPlan"
+          },
+          "maxItems": 6,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Conversationplans"
     }
   },
   "required": [

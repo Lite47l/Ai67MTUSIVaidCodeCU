@@ -1505,6 +1505,14 @@
             "items": {
               "type": "string"
             }
+          },
+          "conversationPlans": {
+            "type": "array",
+            "description": "Доступно только HR. Профиль возвращает план выбранного месяца.",
+            "maxItems": 6,
+            "items": {
+              "$ref": "#/components/schemas/ConversationPlan"
+            }
           }
         },
         "required": [
@@ -1515,6 +1523,19 @@
           "signals",
           "recommendations"
         ],
+        "additionalProperties": false
+      },
+      "ConversationPlan": {
+        "type": "object",
+        "properties": {
+          "month": { "type": "integer", "minimum": 1, "maximum": 6 },
+          "situation": { "type": "string", "maxLength": 500 },
+          "evidenceIds": { "type": "array", "minItems": 1, "maxItems": 8, "items": { "type": "string" } },
+          "questions": { "type": "array", "minItems": 3, "maxItems": 3, "items": { "type": "string" } },
+          "actionType": { "enum": ["weekly_1on1", "reduce_load", "clarify_tasks", "hr_talk", "other"] },
+          "mentorMessage": { "type": "string", "maxLength": 1000 }
+        },
+        "required": ["month", "situation", "evidenceIds", "questions", "actionType", "mentorMessage"],
         "additionalProperties": false
       },
       "Profile": {
@@ -1575,6 +1596,7 @@
             ]
           },
           "ai": {
+            "description": "Выводы агента доступны только HR.",
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Analysis"

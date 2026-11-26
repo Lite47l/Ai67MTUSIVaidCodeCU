@@ -159,6 +159,16 @@ func ValidateAnalysis(a Analysis, r AgentRequest) error {
 		if s.Severity != "positive" && s.Severity != "attention" && s.Severity != "critical" {
 			return errors.New("invalid severity")
 		}
+		if s.Kind == "text_score_mismatch" {
+			if s.Severity != "attention" || len(s.Evidence) != 2 || s.Evidence[0].EventID != s.Evidence[1].EventID {
+				return errors.New("invalid hidden signal")
+			}
+			row := index[s.Evidence[0].EventID]
+			score, comment := row.Scores[s.Evidence[0].Field], row.Comments[s.Evidence[1].Field]
+			if score == nil || *score < 4 || strings.TrimSpace(comment) == "" {
+				return errors.New("hidden signal requires a high score and a comment from the same response")
+			}
+		}
 		for _, e := range s.Evidence {
 			row, ok := index[e.EventID]
 			if !ok {
@@ -178,7 +188,70 @@ func ValidateAnalysis(a Analysis, r AgentRequest) error {
 			return errors.New("invalid recommendation")
 		}
 	}
+	return validateConversationPlans(a.ConversationPlans, index)
+}
+
+func validateConversationPlans(plans []ConversationPlan, responses map[string]Response) error {
+	months := map[int]bool{}
+	for _, p := range plans {
+		if p.Month < 1 || p.Month > 6 || months[p.Month] {
+			return errors.New("invalid or repeated plan month")
+		}
+		months[p.Month] = true
+		switch p.ActionType {
+		case "weekly_1on1", "reduce_load", "clarify_tasks", "hr_talk", "other":
+		default:
+			return errors.New("invalid plan action")
+		}
+		if strings.TrimSpace(p.Situation) == "" || len([]rune(p.Situation)) > 500 ||
+			strings.TrimSpace(p.MentorMessage) == "" || len([]rune(p.MentorMessage)) > 1000 ||
+			len(p.EvidenceIDs) < 1 || len(p.EvidenceIDs) > 8 || len(p.Questions) != 3 {
+			return errors.New("invalid plan content")
+		}
+		questions := map[string]bool{}
+		for _, q := range p.Questions {
+			key := strings.ToLower(strings.TrimSpace(q))
+			if key == "" || len([]rune(q)) > 300 || !strings.HasSuffix(key, "?") || questions[key] {
+				return errors.New("invalid plan question")
+			}
+			questions[key] = true
+		}
+		seen := map[string]bool{}
+		for _, ref := range p.EvidenceIDs {
+			at := strings.LastIndexByte(ref, '#')
+			if at < 1 || seen[ref] {
+				return errors.New("invalid plan evidence ID")
+			}
+			seen[ref] = true
+			row, ok := responses[ref[:at]]
+			field := ref[at+1:]
+			if !ok || row.Month != p.Month ||
+				(row.Scores[field] == nil && strings.TrimSpace(row.Comments[field]) == "") {
+				return errors.New("unknown or out-of-period plan evidence")
+			}
+		}
+	}
 	return nil
+}
+
+func hiddenSignalsForMonth(a *Analysis, responses []Response, month int) []Signal {
+	if a == nil {
+		return nil
+	}
+	current := map[string]bool{}
+	for _, row := range responses {
+		if row.Month == month {
+			current[row.EventID] = true
+		}
+	}
+	var signals []Signal
+	for _, signal := range a.Signals {
+		if signal.Kind == "text_score_mismatch" && len(signal.Evidence) == 2 &&
+			current[signal.Evidence[0].EventID] && current[signal.Evidence[1].EventID] {
+			signals = append(signals, signal)
+		}
+	}
+	return signals
 }
 func (s *Store) Analysis(ctx context.Context, id string, rs []Response) (*Analysis, string, error) {
 	var body string

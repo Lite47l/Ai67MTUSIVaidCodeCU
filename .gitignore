@@ -10,3 +10,4 @@ __pycache__/
 .pytest_cache/
 # The normalized dataset contains questionnaire comments. Keep it local.
 data/history.json
+data/reviewed-labels.json

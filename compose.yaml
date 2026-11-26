@@ -23,6 +23,9 @@ services:
     environment:
       AGENT_TOKEN: ${AGENT_TOKEN:-}
       AGENT_REFERENCE_MODE: ${AGENT_REFERENCE_MODE:-0}
+      AGENT_LLM_URL: ${AGENT_LLM_URL:-}
+      AGENT_LLM_MODEL: ${AGENT_LLM_MODEL:-}
+      AGENT_LLM_TOKEN: ${AGENT_LLM_TOKEN:-}
     restart: unless-stopped
     init: true
 volumes:

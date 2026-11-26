@@ -1,4 +1,4 @@
-"""FastAPI boundary for the future Python AI agent. No model is bundled."""
+"""FastAPI boundary for explainable analysis of internship feedback."""
 from __future__ import annotations
 
 import hashlib
@@ -11,6 +11,7 @@ from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from insights import analyze_insights
 
 
 class StrictModel(BaseModel):
@@ -53,6 +54,15 @@ class Signal(StrictModel):
     evidence: list[Evidence] = Field(min_length=1, max_length=20)
 
 
+class ConversationPlan(StrictModel):
+    month: int = Field(ge=1, le=6)
+    situation: str = Field(min_length=1, max_length=500)
+    evidenceIds: list[str] = Field(min_length=1, max_length=8)
+    questions: list[str] = Field(min_length=3, max_length=3)
+    actionType: Literal["weekly_1on1", "reduce_load", "clarify_tasks", "hr_talk", "other"]
+    mentorMessage: str = Field(min_length=1, max_length=1000)
+
+
 class AnalyzeResult(StrictModel):
     schemaVersion: Literal["1.0"]
     requestId: str
@@ -60,6 +70,7 @@ class AnalyzeResult(StrictModel):
     summary: str = Field(min_length=1, max_length=10000)
     signals: list[Signal] = Field(max_length=100)
     recommendations: list[str] = Field(max_length=20)
+    conversationPlans: list[ConversationPlan] | None = Field(default=None, max_length=6)
 
 
 app = FastAPI(title="МГТС Python Agent Contract", version="1.0.0")
@@ -77,18 +88,17 @@ def authorize(authorization: str | None) -> None:
 
 
 def analyze_history(req: AnalyzeRequest) -> AnalyzeResult:
-    """Replace this function with the team's AI implementation.
-
-    Treat comments as untrusted data, never as model instructions. Keep exact
-    evidence values. A numeric score must use its decimal string, a comment
-    must use its full original string. Go validates every evidence reference.
-    """
-    if os.getenv("AGENT_REFERENCE_MODE") != "1":
-        raise HTTPException(501, "AI model is not implemented; replace analyze_history")
+    if os.getenv("AGENT_REFERENCE_MODE") == "1":
+        return AnalyzeResult(
+            schemaVersion="1.0", requestId=req.requestId, revision=req.revision,
+            summary="Проверка связи с Go. Анализ отключен в режиме проверки контракта.",
+            signals=[], recommendations=[],
+        )
+    signals, plans = analyze_insights(req.history)
     return AnalyzeResult(
         schemaVersion="1.0", requestId=req.requestId, revision=req.revision,
-        summary="Контракт Go ↔ FastAPI проверен. Это ответ адаптера без AI-модели; аналитические выводы не сформированы.",
-        signals=[], recommendations=[],
+        summary="Проверьте оценки и комментарии, на которых основан анализ выбранного месяца.",
+        signals=signals, recommendations=[], conversationPlans=plans,
     )
 
 
@@ -97,17 +107,24 @@ def health() -> dict[str, str]:
     return {"status": "alive"}
 
 
-@app.post("/v1/analyze", response_model=AnalyzeResult)
+@app.post("/v1/analyze", response_model=AnalyzeResult, response_model_exclude_none=True)
 def analyze(req: AnalyzeRequest, authorization: str | None = Header(default=None),
             idempotency_key: str | None = Header(default=None)) -> AnalyzeResult:
     authorize(authorization)
     if idempotency_key != req.requestId:
         raise HTTPException(422, "Idempotency-Key must equal requestId")
+    event_ids = set()
+    slots = set()
     for row in req.history:
         if row.internId != req.internId or row.programId != req.programId:
             raise HTTPException(422, "History contains another participant")
         if any(value is not None and not 1 <= value <= 5 for value in row.scores.values()):
             raise HTTPException(422, "Score must be 1–5 or null")
+        slot = (row.month, row.source)
+        if row.eventId in event_ids or slot in slots:
+            raise HTTPException(422, "History contains a duplicate event or slot")
+        event_ids.add(row.eventId)
+        slots.add(slot)
     payload = json.dumps(req.model_dump(mode="json"), sort_keys=True, ensure_ascii=False)
     fingerprint = hashlib.sha256(payload.encode()).hexdigest()
     # Serialized adapter for a single prototype worker. Replace with a durable

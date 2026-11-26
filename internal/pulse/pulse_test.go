@@ -501,6 +501,73 @@ func TestAgentFailuresAndStaleJobs(t *testing.T) {
 	}
 }
 
+func TestQueuedHiddenSignalAndConversationPlanAreScopedToHRAndMonth(t *testing.T) {
+	s := testStore(t)
+	agent := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var req AgentRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			t.Error(err)
+			http.Error(w, "bad request", 400)
+			return
+		}
+		result := goodAnalysis(req)
+		row := req.History[0]
+		result.Signals = []Signal{{
+			ID: "hidden-qa", Kind: "text_score_mismatch", Severity: "attention", Title: "Нагрузка",
+			Evidence: []Evidence{{row.EventID, "workload", "4"}, {row.EventID, "difficulties", row.Comments["difficulties"]}},
+		}}
+		result.ConversationPlans = []ConversationPlan{{
+			Month: 3, Situation: "Стоит обсудить нагрузку.", EvidenceIDs: []string{row.EventID + "#workload"},
+			Questions:  []string{"Как распределены задачи?", "Что создает нагрузку?", "Какие сроки можно обсудить?"},
+			ActionType: "reduce_load", MentorMessage: "Предлагаем сверить задачи и сроки.",
+		}}
+		writeJSON(w, 200, result)
+	}))
+	defer agent.Close()
+	h := (&Server{Store: s, AgentURL: agent.URL}).Handler(testAssets)
+	hr := loginAs(t, s, h, "hr", "hr", "")
+	mentor := loginAs(t, s, h, "mentor", "mentor", "Н-001")
+	intern := loginAs(t, s, h, "intern", "intern", "СТ-001")
+	r := Response{EventID: "hidden-qa-event", ProgramID: Program, InternID: "СТ-001",
+		Department: "Технический блок", Month: 3, Source: "intern",
+		Scores: map[string]*int{}, Comments: map[string]string{
+			"difficulties": "Стало больше задач одновременно.", "barriers": "",
+		}}
+	for _, field := range InternFields {
+		value := 4
+		r.Scores[field] = &value
+	}
+	if posted := request(t, h, "POST", "/api/v1/responses", r, intern); posted.Code != 200 && posted.Code != 201 {
+		t.Fatalf("ingest returned %d: %s", posted.Code, posted.Body)
+	}
+	worker := &Worker{Store: s, URL: agent.URL}
+	if err := worker.Once(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+
+	profile := request(t, h, "GET", "/api/v1/hr/interns/СТ-001?month=3", nil, hr)
+	var item struct {
+		AI     *Analysis `json:"ai"`
+		Status string    `json:"status"`
+	}
+	if err := json.Unmarshal(profile.Body.Bytes(), &item); err != nil || item.AI == nil ||
+		len(item.AI.ConversationPlans) != 1 || len(item.AI.Signals) != 1 || item.Status != "attention" {
+		t.Fatalf("HR profile: %d %s", profile.Code, profile.Body)
+	}
+	otherMonth := request(t, h, "GET", "/api/v1/hr/interns/СТ-001?month=4", nil, hr)
+	if strings.Contains(otherMonth.Body.String(), "conversationPlans") {
+		t.Fatal("plan appeared in another month")
+	}
+	for role, cookie := range map[string]*http.Cookie{"mentor": mentor, "intern": intern} {
+		body := request(t, h, "GET", "/api/v1/"+role+"/interns/СТ-001?month=3", nil, cookie)
+		if body.Code != 200 || !strings.Contains(body.Body.String(), `"ai":null`) ||
+			strings.Contains(body.Body.String(), "conversationPlans") ||
+			strings.Contains(body.Body.String(), `"kind":"text_score_mismatch"`) {
+			t.Fatalf("%s can see HR analysis: %d %s", role, body.Code, body.Body)
+		}
+	}
+}
+
 func TestMissingPairIsNotPositive(t *testing.T) {
 	if profileStatus(nil, 1, nil) != "missing" {
 		t.Fatal("missing pair became positive")
