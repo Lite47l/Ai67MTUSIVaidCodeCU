@@ -596,6 +596,40 @@
         }
       }
     },
+    "/api/v1/hr/interns/{id}/recommendations/{recommendation}/huntflow": {
+      "post": {
+        "summary": "Сохранить рекомендацию заметкой Huntflow или проверить ранее отправленную запись",
+        "security": [{ "cookieAuth": [] }],
+        "x-roles": ["hr"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "recommendation", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "month", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 6, "default": 6 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Сохранённая или ранее созданная заметка",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskDelivery" } } }
+          },
+          "202": {
+            "description": "Отправка уже выполняется",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskDelivery" } } }
+          },
+          "409": {
+            "description": "Стажёр ещё не связан с карточкой Huntflow",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          },
+          "502": {
+            "description": "Ошибка отправки или неподтверждённый результат",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskDelivery" } } }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
     "/api/v1/hr/interns/{id}/recommendations/{recommendation}/confirm": {
       "post": {
         "summary": "Подтвердить отправку рекомендации в HR-сервис задач",
@@ -1571,7 +1605,7 @@
       "TaskDelivery": {
         "type": "object",
         "properties": {
-          "state": { "enum": ["pending", "sending", "failed", "sent"] },
+          "state": { "enum": ["pending", "sending", "failed", "uncertain", "sent"] },
           "attempts": { "type": "integer", "minimum": 0 },
           "externalId": { "type": "string" },
           "externalUrl": { "type": "string", "format": "uri" },
@@ -1590,7 +1624,8 @@
           "title": { "type": "string" },
           "reason": { "type": "string" },
           "questions": { "type": "array", "items": { "type": "string" } },
-          "delivery": { "$ref": "#/components/schemas/TaskDelivery" }
+          "delivery": { "$ref": "#/components/schemas/TaskDelivery" },
+          "huntflowDelivery": { "$ref": "#/components/schemas/TaskDelivery" }
         },
         "required": ["id", "month", "actionType", "audience", "title", "reason", "questions"],
         "additionalProperties": false
@@ -1673,6 +1708,14 @@
           },
           "hrTaskConfigured": {
             "description": "Наличие настроенного адреса HR-сервиса, только в профиле HR.",
+            "type": "boolean"
+          },
+          "huntflowConfigured": {
+            "description": "Настроен ли Huntflow, только в профиле HR.",
+            "type": "boolean"
+          },
+          "huntflowAvailable": {
+            "description": "Есть ли для стажёра привязка к карточке Huntflow, только в профиле HR.",
             "type": "boolean"
           },
           "revision": {

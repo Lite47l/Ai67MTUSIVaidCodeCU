@@ -19,6 +19,7 @@ import (
 type Server struct {
 	Store                                                                                          *Store
 	HRTasks                                                                                        *HRTaskClient
+	Huntflow                                                                                       *HuntflowClient
 	AgentURL, WebhookSecret, TallySecret, InternFormID, MentorFormID, InternFormURL, MentorFormURL string
 	SecureCookie                                                                                   bool
 	loginLimit                                                                                     limiter
@@ -117,6 +118,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 	mux.HandleFunc("POST /api/v1/mentor/interns/{id}/feedback", s.auth("mentor", s.publish))
 	mux.HandleFunc("POST /api/v1/hr/interns/{id}/analysis", s.auth("hr", s.analyze))
 	mux.HandleFunc("POST /api/v1/hr/interns/{id}/recommendations/{recommendation}/confirm", s.auth("hr", s.confirmRecommendation))
+	mux.HandleFunc("POST /api/v1/hr/interns/{id}/recommendations/{recommendation}/huntflow", s.auth("hr", s.confirmHuntflow))
 	mux.HandleFunc("POST /api/v1/hr/jobs/{id}/retry", s.auth("hr", s.retry))
 	mux.HandleFunc("POST /api/v1/integrations/responses", s.webhook)
 	mux.HandleFunc("POST /api/v1/integrations/tally", s.tally)
@@ -281,9 +283,16 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 				s.internal(w, err)
 				return
 			}
+			recommendations[i].HuntflowDelivery, err = s.Store.taskDelivery(r.Context(), huntflowDeliveryID(recommendations[i].ID))
+			if err != nil {
+				s.internal(w, err)
+				return
+			}
 		}
 		payload["recommendations"] = recommendations
 		payload["hrTaskConfigured"] = s.HRTasks != nil
+		payload["huntflowConfigured"] = s.Huntflow != nil
+		payload["huntflowAvailable"] = s.Huntflow.target(id) != nil
 		if hrAnalysis != nil {
 			var plans []ConversationPlan
 			for _, plan := range hrAnalysis.ConversationPlans {
@@ -560,7 +569,7 @@ func (s *Server) integrations(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"agentConfigured": s.AgentURL != "", "hrTaskConfigured": s.HRTasks != nil, "webhookConfigured": s.WebhookSecret != "", "tallyConfigured": s.TallySecret != "" && s.InternFormID != "" && s.MentorFormID != "", "deliveries": deliveries, "jobs": jobs})
+	writeJSON(w, 200, map[string]any{"agentConfigured": s.AgentURL != "", "hrTaskConfigured": s.HRTasks != nil, "huntflowConfigured": s.Huntflow != nil, "webhookConfigured": s.WebhookSecret != "", "tallyConfigured": s.TallySecret != "" && s.InternFormID != "" && s.MentorFormID != "", "deliveries": deliveries, "jobs": jobs})
 }
 
 type Action struct {

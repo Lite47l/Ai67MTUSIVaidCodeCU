@@ -41,14 +41,15 @@ type HRTaskClient struct {
 }
 
 type hrTask struct {
-	ID           string `json:"id"`
-	Program      string `json:"programId"`
-	Intern       string `json:"internId"`
-	Month        int    `json:"month"`
-	Action       string `json:"actionType"`
-	Assignee     string `json:"assignee"`
-	AssigneeRole string `json:"assigneeRole"`
-	Description  string `json:"description"`
+	ID           string          `json:"id"`
+	Program      string          `json:"programId"`
+	Intern       string          `json:"internId"`
+	Month        int             `json:"month"`
+	Action       string          `json:"actionType"`
+	Assignee     string          `json:"assignee"`
+	AssigneeRole string          `json:"assigneeRole"`
+	Description  string          `json:"description"`
+	Huntflow     *huntflowTarget `json:"huntflow,omitempty"`
 }
 
 func safeTaskURL(value string) bool {
@@ -127,6 +128,22 @@ func (s *Server) confirmRecommendation(w http.ResponseWriter, r *http.Request) {
 		problem(w, 503, "HR-сервис задач не настроен")
 		return
 	}
+	s.confirmRecommendationTo(w, r, false, func(ctx context.Context, task hrTask, _ bool) (TaskDelivery, error) {
+		return s.HRTasks.create(ctx, task)
+	})
+}
+
+func (s *Server) confirmHuntflow(w http.ResponseWriter, r *http.Request) {
+	if s.Huntflow == nil {
+		problem(w, 503, "Huntflow не настроен")
+		return
+	}
+	s.confirmRecommendationTo(w, r, true, s.Huntflow.create)
+}
+
+type recommendationSender func(context.Context, hrTask, bool) (TaskDelivery, error)
+
+func (s *Server) confirmRecommendationTo(w http.ResponseWriter, r *http.Request, huntflow bool, send recommendationSender) {
 	id, ok := s.scope(w, r)
 	if !ok {
 		return
@@ -164,6 +181,22 @@ func (s *Server) confirmRecommendation(w http.ResponseWriter, r *http.Request) {
 		Assignee: who.Username, AssigneeRole: recommendation.Audience,
 		Description: recommendation.Title + ". " + recommendation.Reason,
 	}
+	deliveryID := job.ID
+	if huntflow {
+		deliveryID = huntflowDeliveryID(job.ID)
+		job.Huntflow = s.Huntflow.target(id)
+		if job.Huntflow == nil {
+			delivery, err := s.Store.taskDelivery(ctx, deliveryID)
+			if err != nil {
+				s.internal(w, err)
+				return
+			}
+			if delivery == nil {
+				problem(w, 409, "Стажёр ещё не привязан к карточке Huntflow")
+				return
+			}
+		}
+	}
 	if job.AssigneeRole == "mentor" {
 		person, err := s.Store.Person(ctx, id)
 		if err != nil {
@@ -172,13 +205,13 @@ func (s *Server) confirmRecommendation(w http.ResponseWriter, r *http.Request) {
 		}
 		job.Assignee = person.MentorID
 	}
-	out, err := s.deliverHRTask(ctx, job, who.Username)
+	out, err := s.deliverRecommendation(ctx, job, deliveryID, who.Username, send)
 	if err != nil {
 		s.internal(w, err)
 		return
 	}
 	code := http.StatusOK
-	if out.State == "failed" {
+	if out.State == "failed" || out.State == "uncertain" {
 		code = http.StatusBadGateway
 	} else if out.State == "sending" {
 		code = http.StatusAccepted
@@ -186,7 +219,7 @@ func (s *Server) confirmRecommendation(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, code, out)
 }
 
-func (s *Server) deliverHRTask(ctx context.Context, job hrTask, confirmedBy string) (*TaskDelivery, error) {
+func (s *Server) deliverRecommendation(ctx context.Context, job hrTask, deliveryID, confirmedBy string, send recommendationSender) (*TaskDelivery, error) {
 	// Continue persisting the outcome if the browser closes after HR confirmed.
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 15*time.Second)
 	defer cancel()
@@ -200,11 +233,12 @@ func (s *Server) deliverHRTask(ctx context.Context, job hrTask, confirmedBy stri
 		return nil, err
 	}
 	if _, err = tx.ExecContext(ctx, "INSERT OR IGNORE INTO hr_task_deliveries(id,confirmed_by,confirmed_at,payload) VALUES(?,?,?,?)",
-		job.ID, confirmedBy, stamp(), string(payload)); err != nil {
+		deliveryID, confirmedBy, stamp(), string(payload)); err != nil {
 		return nil, err
 	}
 	// Keep the full payload stable even when another HR user retries delivery.
-	if err = tx.QueryRowContext(ctx, "SELECT payload FROM hr_task_deliveries WHERE id=?", job.ID).Scan(&payload); err != nil {
+	var priorState string
+	if err = tx.QueryRowContext(ctx, "SELECT payload,state FROM hr_task_deliveries WHERE id=?", deliveryID).Scan(&payload, &priorState); err != nil {
 		return nil, err
 	}
 	if err = json.Unmarshal(payload, &job); err != nil {
@@ -214,8 +248,8 @@ func (s *Server) deliverHRTask(ctx context.Context, job hrTask, confirmedBy stri
 	var attempt int
 	err = tx.QueryRowContext(ctx, `
  UPDATE hr_task_deliveries SET state='sending',lease_until=?,attempts=attempts+1,last_error=''
- WHERE id=? AND (state IN ('pending','failed') OR (state='sending' AND lease_until<=?))
- RETURNING attempts`, now+30, job.ID, now).Scan(&attempt)
+ WHERE id=? AND (state IN ('pending','failed','uncertain') OR (state='sending' AND lease_until<=?))
+ RETURNING attempts`, now+30, deliveryID, now).Scan(&attempt)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return nil, err
 	}
@@ -223,18 +257,21 @@ func (s *Server) deliverHRTask(ctx context.Context, job hrTask, confirmedBy stri
 		return nil, err
 	}
 	if attempt == 0 {
-		return s.Store.taskDelivery(ctx, job.ID)
+		return s.Store.taskDelivery(ctx, deliveryID)
 	}
-	delivery, sendErr := s.HRTasks.create(ctx, job)
+	delivery, sendErr := send(ctx, job, priorState == "uncertain" || priorState == "sending")
 	if sendErr != nil {
-		delivery = TaskDelivery{State: "failed", Error: sendErr.Error()}
+		if delivery.State == "" {
+			delivery.State = "failed"
+		}
+		delivery.Error = sendErr.Error()
 	}
 	_, err = s.Store.DB.ExecContext(ctx, `
  UPDATE hr_task_deliveries SET state=?,external_id=?,external_url=?,last_error=?,lease_until=0
  WHERE id=? AND state='sending' AND attempts=?`,
-		delivery.State, delivery.ExternalID, delivery.ExternalURL, delivery.Error, job.ID, attempt)
+		delivery.State, delivery.ExternalID, delivery.ExternalURL, delivery.Error, deliveryID, attempt)
 	if err != nil {
 		return nil, err
 	}
-	return s.Store.taskDelivery(ctx, job.ID)
+	return s.Store.taskDelivery(ctx, deliveryID)
 }

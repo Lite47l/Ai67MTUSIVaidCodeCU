@@ -480,31 +480,44 @@ function hrAnalysisHTML(d,rs){
     ${ai?.recommendations.length?`<h3>Возможные действия</h3><ul>${ai.recommendations.map(v=>`<li>${E(v)}</li>`).join('')}</ul>`:''}
     </section>${plan?conversationPlanHTML(plan,rs):''}`;
 }
+function recommendationDeliveryHTML(id, delivery, enabled, huntflow = false) {
+  if (delivery?.state === 'sent') {
+    const message = huntflow ? 'Заметка сохранена в Huntflow.' : 'Задача создана.';
+    return `<p class="muted">${message} ${safeLink(delivery.externalUrl, huntflow ? 'Открыть карточку Huntflow' : 'Открыть задачу')}</p>`;
+  }
+  if (delivery?.state === 'sending') {
+    return `<p class="muted" role="status">${huntflow ? 'Заметка отправляется в Huntflow.' : 'Задача отправляется в HR-сервис.'}</p>`;
+  }
+  const error = delivery?.error ? `<p class="error" role="alert">${E(delivery.error)}</p>` : '';
+  if (!enabled) return error;
+  let label = 'Подтвердить и создать задачу';
+  if (huntflow) {
+    label = delivery?.state === 'uncertain' ? 'Проверить запись в Huntflow'
+      : delivery?.state === 'failed' ? 'Повторить отправку в Huntflow' : 'Сохранить заметку в Huntflow';
+  } else if (delivery?.state === 'failed') {
+    label = 'Повторить отправку';
+  }
+  return `${error}<button type="button" class="secondary" data-hr-task="${E(id)}" data-hr-destination="${huntflow ? 'huntflow' : 'confirm'}">${label}</button>`;
+}
 function recommendationsHTML(data, role) {
   if (role === 'intern') return '';
   const hr = role === 'hr';
   const title = hr ? 'Рекомендации по стажёру' : 'Рекомендации наставнику';
   const cards = (data.recommendations || []).map(item => {
-    const delivery = item.delivery;
-    let task = '';
-    if (hr) {
-      if (delivery?.state === 'sent') {
-        task = `<p class="muted">Задача создана. ${safeLink(delivery.externalUrl, 'Открыть задачу')}</p>`;
-      } else if (delivery?.state === 'sending') {
-        task = '<p class="muted" role="status">Задача отправляется в HR-сервис.</p>';
-      } else if (data.hrTaskConfigured) {
-        const retry = delivery?.state === 'failed';
-        task = `${retry ? `<p class="error" role="alert">${E(delivery.error)}</p>` : ''}
-          <button type="button" class="secondary" data-hr-task="${E(item.id)}">${retry ? 'Повторить отправку' : 'Подтвердить и создать задачу'}</button>`;
-      }
-    }
+    const actions = hr ? [
+      recommendationDeliveryHTML(item.id, item.delivery, data.hrTaskConfigured),
+      recommendationDeliveryHTML(item.id, item.huntflowDelivery,
+        data.huntflowConfigured && (data.huntflowAvailable || item.huntflowDelivery), true),
+    ].filter(Boolean).join('') : '';
     return `<article class="feedback"><h3>${E(item.title)}</h3>
       ${hr ? `<small>Получатель · ${item.audience === 'mentor' ? 'Наставник' : 'HR'}</small>` : ''}
-      <p>${E(item.reason)}</p><ul>${item.questions.map(question => `<li>${E(question)}</li>`).join('')}</ul>${task}</article>`;
+      <p>${E(item.reason)}</p><ul>${item.questions.map(question => `<li>${E(question)}</li>`).join('')}</ul>
+      ${actions ? `<div class="actionsrow">${actions}</div>` : ''}</article>`;
   }).join('');
   return `<section class="detail-section"><h2 class="section-heading">${title} · месяц ${E(data.month)}</h2>
     ${cards || '<p class="muted">За выбранный месяц рекомендаций пока нет.</p>'}
-    ${hr && !data.hrTaskConfigured && cards ? '<p class="muted">Отправка задач появится после настройки HR-сервиса.</p>' : ''}</section>`;
+    ${hr && !data.hrTaskConfigured && cards ? '<p class="muted">Отправка задач появится после настройки HR-сервиса.</p>' : ''}
+    ${hr && data.huntflowConfigured && !data.huntflowAvailable && cards ? '<p class="muted">Привяжите стажёра к карточке Huntflow, чтобы сохранять заметки.</p>' : ''}</section>`;
 }
 function profile() {
   const data = S.profile;
@@ -639,6 +652,7 @@ function integrations(data) {
     ['Прямой webhook', 'Приём ответов от внешних систем', data.webhookConfigured, 'Не настроен'],
     ['Python-агент', 'Обработка текстовой обратной связи', data.agentConfigured, 'Не подключён'],
     ['HR-сервис задач', 'Передача рекомендаций после подтверждения HR', data.hrTaskConfigured, 'Не настроен'],
+    ['Huntflow', 'Сохранение заметок в связанных карточках кандидатов', data.huntflowConfigured, 'Не настроен'],
   ];
   const lastAccepted = data.deliveries.find(delivery => delivery.status === 'accepted');
   shell(`${detailHead('Интеграции', refreshButton())}
@@ -703,7 +717,7 @@ function selectProfileTab(tab) {
 document.addEventListener('click', async event => {
   const button = event.target.closest('button');
   if (!button) return;
-  const {nav, person, tab, retry, close, confirmClose, act, evidence, period, openProfile, clearRating, actionSignal, hrTask} = button.dataset;
+  const {nav, person, tab, retry, close, confirmClose, act, evidence, period, openProfile, clearRating, actionSignal, hrTask, hrDestination} = button.dataset;
   try {
     if (period) {
       S.month = Number(period);
@@ -751,8 +765,11 @@ document.addEventListener('click', async event => {
       const month = S.month;
       button.disabled = true;
       try {
-        const delivery = await api('/hr/interns/' + encodeURIComponent(id) + '/recommendations/' + encodeURIComponent(hrTask) + '/confirm?month=' + month, 'POST');
-        toast(delivery.state === 'sent' ? 'Задача создана' : 'Задача отправляется');
+        const huntflow = hrDestination === 'huntflow';
+        const delivery = await api('/hr/interns/' + encodeURIComponent(id) + '/recommendations/' + encodeURIComponent(hrTask)
+          + (huntflow ? '/huntflow' : '/confirm') + '?month=' + month, 'POST');
+        toast(huntflow ? (delivery.state === 'sent' ? 'Заметка сохранена в Huntflow' : 'Заметка отправляется')
+          : (delivery.state === 'sent' ? 'Задача создана' : 'Задача отправляется'));
       } finally {
         if (S.view === 'profile' && S.person === id && S.month === month) await render();
         button.disabled = false;
