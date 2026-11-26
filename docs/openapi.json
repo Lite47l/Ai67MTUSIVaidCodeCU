@@ -596,6 +596,36 @@
         }
       }
     },
+    "/api/v1/hr/interns/{id}/recommendations/{recommendation}/confirm": {
+      "post": {
+        "summary": "Подтвердить отправку рекомендации в HR-сервис задач",
+        "security": [{ "cookieAuth": [] }],
+        "x-roles": ["hr"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "recommendation", "in": "path", "required": true, "schema": { "type": "string" } },
+          { "name": "month", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 6, "default": 6 } }
+        ],
+        "responses": {
+          "200": {
+            "description": "Созданная задача, включая повторное подтверждение",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskDelivery" } } }
+          },
+          "202": {
+            "description": "Задача уже отправляется",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskDelivery" } } }
+          },
+          "502": {
+            "description": "Отправка завершилась ошибкой и доступна для повтора",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/TaskDelivery" } } }
+          },
+          "default": {
+            "description": "Ошибка запроса или сервиса",
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Error" } } }
+          }
+        }
+      }
+    },
     "/api/v1/hr/interns/{id}/analysis": {
       "post": {
         "summary": "Запрос анализа актуальной ревизии",
@@ -1538,6 +1568,33 @@
         "required": ["month", "situation", "evidenceIds", "questions", "actionType", "mentorMessage"],
         "additionalProperties": false
       },
+      "TaskDelivery": {
+        "type": "object",
+        "properties": {
+          "state": { "enum": ["pending", "sending", "failed", "sent"] },
+          "attempts": { "type": "integer", "minimum": 0 },
+          "externalId": { "type": "string" },
+          "externalUrl": { "type": "string", "format": "uri" },
+          "error": { "type": "string" }
+        },
+        "required": ["state", "attempts"],
+        "additionalProperties": false
+      },
+      "Recommendation": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "month": { "type": "integer", "minimum": 1, "maximum": 6 },
+          "actionType": { "enum": ["reduce_load", "clarify_tasks", "weekly_1on1", "increase_task_complexity", "hr_talk", "other"] },
+          "audience": { "enum": ["mentor", "hr"] },
+          "title": { "type": "string" },
+          "reason": { "type": "string" },
+          "questions": { "type": "array", "items": { "type": "string" } },
+          "delivery": { "$ref": "#/components/schemas/TaskDelivery" }
+        },
+        "required": ["id", "month", "actionType", "audience", "title", "reason", "questions"],
+        "additionalProperties": false
+      },
       "Profile": {
         "type": "object",
         "properties": {
@@ -1608,6 +1665,15 @@
           },
           "aiState": {
             "type": "string"
+          },
+          "recommendations": {
+            "description": "Список за выбранный месяц для HR и назначенного наставника. Наставник видит только свои рекомендации.",
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/Recommendation" }
+          },
+          "hrTaskConfigured": {
+            "description": "Наличие настроенного адреса HR-сервиса, только в профиле HR.",
+            "type": "boolean"
           },
           "revision": {
             "type": "string"

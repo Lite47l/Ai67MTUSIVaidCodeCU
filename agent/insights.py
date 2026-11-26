@@ -329,6 +329,10 @@ def plan_for_month(month, evidence, ask):
     if result is None:
         return plan
     action = result.get("actionType")
+    if isinstance(action, str) and action and action not in TEMPLATES:
+        situation, questions, message = TEMPLATES["other"]
+        return {**plan, "situation": situation, "questions": list(questions),
+                "actionType": "other", "mentorMessage": message}
     ids, questions, situation = result.get("evidenceIds"), result.get("questions"), result.get("situation")
     if (not isinstance(action, str) or action not in evidence
             or not isinstance(ids, list) or not 1 <= len(ids) <= 8

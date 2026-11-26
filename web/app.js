@@ -61,7 +61,8 @@ async function api(path, method = 'GET', body) {
       S.who = null;
       loginPage(true);
     }
-    throw Object.assign(new Error(data.error?.message || `Ошибка ${response.status}`), {status: response.status});
+    const message = typeof data.error === 'string' ? data.error : data.error?.message;
+    throw Object.assign(new Error(message || `Ошибка ${response.status}`), {status: response.status});
   }
   return data;
 }
@@ -479,6 +480,32 @@ function hrAnalysisHTML(d,rs){
     ${ai?.recommendations.length?`<h3>Возможные действия</h3><ul>${ai.recommendations.map(v=>`<li>${E(v)}</li>`).join('')}</ul>`:''}
     </section>${plan?conversationPlanHTML(plan,rs):''}`;
 }
+function recommendationsHTML(data, role) {
+  if (role === 'intern') return '';
+  const hr = role === 'hr';
+  const title = hr ? 'Рекомендации по стажёру' : 'Рекомендации наставнику';
+  const cards = (data.recommendations || []).map(item => {
+    const delivery = item.delivery;
+    let task = '';
+    if (hr) {
+      if (delivery?.state === 'sent') {
+        task = `<p class="muted">Задача создана. ${safeLink(delivery.externalUrl, 'Открыть задачу')}</p>`;
+      } else if (delivery?.state === 'sending') {
+        task = '<p class="muted" role="status">Задача отправляется в HR-сервис.</p>';
+      } else if (data.hrTaskConfigured) {
+        const retry = delivery?.state === 'failed';
+        task = `${retry ? `<p class="error" role="alert">${E(delivery.error)}</p>` : ''}
+          <button type="button" class="secondary" data-hr-task="${E(item.id)}">${retry ? 'Повторить отправку' : 'Подтвердить и создать задачу'}</button>`;
+      }
+    }
+    return `<article class="feedback"><h3>${E(item.title)}</h3>
+      ${hr ? `<small>Получатель · ${item.audience === 'mentor' ? 'Наставник' : 'HR'}</small>` : ''}
+      <p>${E(item.reason)}</p><ul>${item.questions.map(question => `<li>${E(question)}</li>`).join('')}</ul>${task}</article>`;
+  }).join('');
+  return `<section class="detail-section"><h2 class="section-heading">${title} · месяц ${E(data.month)}</h2>
+    ${cards || '<p class="muted">За выбранный месяц рекомендаций пока нет.</p>'}
+    ${hr && !data.hrTaskConfigured && cards ? '<p class="muted">Отправка задач появится после настройки HR-сервиса.</p>' : ''}</section>`;
+}
 function profile() {
   const data = S.profile;
   const {responses, month, person} = data;
@@ -498,7 +525,8 @@ function profile() {
         const relevant = signals.find(signal => signal.evidence.some(item => row && item.eventId === row.eventId));
         return `<article class="feedback">
           <div class="panelhead"><h3>${surveyTitles[source]}</h3>${relevant ? `<button type="button" class="subtle-button" data-evidence="${E(relevant.id)}">${icon('right')}Посмотреть основания</button>` : ''}</div>
-          ${row ? Object.entries(row.comments).map(([key, value]) => `<div class="comment-entry"><small>${E(S.schema.labels[key] || key)}</small><p>${E(value || 'Ответ не заполнен')}</p></div>`).join('') : '<p class="muted">Анкета за этот месяц ещё не получена.</p>'}
+          ${row && role === 'mentor' && source === 'intern' ? '<p class="muted">Исходные комментарии стажёра доступны HR.</p>'
+            : row ? Object.entries(row.comments).map(([key, value]) => `<div class="comment-entry"><small>${E(S.schema.labels[key] || key)}</small><p>${E(value || 'Ответ не заполнен')}</p></div>`).join('') : '<p class="muted">Анкета за этот месяц ещё не получена.</p>'}
         </article>`;
       }).join('')}</div>
     </section>`;
@@ -512,7 +540,7 @@ function profile() {
         <table class="scoretable"><thead><tr><th scope="col">Показатель</th>${MONTHS.map(value => `<th scope="col">М${value}</th>`).join('')}</tr></thead>
         <tbody>${S.schema[source + 'Fields'].map(field => `<tr><th scope="row">${E(S.schema.labels[field])}</th>${MONTHS.map(value => `<td>${score(responseAt(responses, source, value)?.scores[field])}</td>`).join('')}</tr>`).join('')}</tbody></table>
       </div></section>`;
-    body = `<section class="detail-section signal-list"><h2 class="signal-list-title">Сигналы за месяц ${month}</h2>
+    body = `${recommendationsHTML(data, role)}<section class="detail-section signal-list"><h2 class="signal-list-title">Сигналы за месяц ${month}</h2>
       ${summarySignals(signals).map(signal => signalSummary(signal, data)).join('') || `<p class="muted">${data.status === 'missing' ? 'Для анализа пока недостаточно данных.' : 'За этот месяц активных сигналов нет.'}</p>`}</section>
       ${chart(responses)}
       <details class="history-extra"><summary>Все показатели анкет</summary>${timeline('intern')}${timeline('mentor')}</details>
@@ -610,6 +638,7 @@ function integrations(data) {
     ['Формы Tally', 'Анкеты стажёра и наставника', data.tallyConfigured, 'Не настроены'],
     ['Прямой webhook', 'Приём ответов от внешних систем', data.webhookConfigured, 'Не настроен'],
     ['Python-агент', 'Обработка текстовой обратной связи', data.agentConfigured, 'Не подключён'],
+    ['HR-сервис задач', 'Передача рекомендаций после подтверждения HR', data.hrTaskConfigured, 'Не настроен'],
   ];
   const lastAccepted = data.deliveries.find(delivery => delivery.status === 'accepted');
   shell(`${detailHead('Интеграции', refreshButton())}
@@ -674,7 +703,7 @@ function selectProfileTab(tab) {
 document.addEventListener('click', async event => {
   const button = event.target.closest('button');
   if (!button) return;
-  const {nav, person, tab, retry, close, confirmClose, act, evidence, period, openProfile, clearRating, actionSignal} = button.dataset;
+  const {nav, person, tab, retry, close, confirmClose, act, evidence, period, openProfile, clearRating, actionSignal, hrTask} = button.dataset;
   try {
     if (period) {
       S.month = Number(period);
@@ -717,6 +746,17 @@ document.addEventListener('click', async event => {
       await api('/hr/jobs/' + encodeURIComponent(retry) + '/retry', 'POST');
       toast('Запрос возвращён в очередь');
       await render();
+    } else if (hrTask) {
+      const id = S.person;
+      const month = S.month;
+      button.disabled = true;
+      try {
+        const delivery = await api('/hr/interns/' + encodeURIComponent(id) + '/recommendations/' + encodeURIComponent(hrTask) + '/confirm?month=' + month, 'POST');
+        toast(delivery.state === 'sent' ? 'Задача создана' : 'Задача отправляется');
+      } finally {
+        if (S.view === 'profile' && S.person === id && S.month === month) await render();
+        button.disabled = false;
+      }
     } else if (close) {
       confirmActionClosure(close, button);
     } else if (confirmClose) {

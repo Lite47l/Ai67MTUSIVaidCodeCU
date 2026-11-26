@@ -18,6 +18,7 @@ import (
 
 type Server struct {
 	Store                                                                                          *Store
+	HRTasks                                                                                        *HRTaskClient
 	AgentURL, WebhookSecret, TallySecret, InternFormID, MentorFormID, InternFormURL, MentorFormURL string
 	SecureCookie                                                                                   bool
 	loginLimit                                                                                     limiter
@@ -115,6 +116,7 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 	mux.HandleFunc("POST /api/v1/responses", s.auth("hr,mentor,intern", s.response))
 	mux.HandleFunc("POST /api/v1/mentor/interns/{id}/feedback", s.auth("mentor", s.publish))
 	mux.HandleFunc("POST /api/v1/hr/interns/{id}/analysis", s.auth("hr", s.analyze))
+	mux.HandleFunc("POST /api/v1/hr/interns/{id}/recommendations/{recommendation}/confirm", s.auth("hr", s.confirmRecommendation))
 	mux.HandleFunc("POST /api/v1/hr/jobs/{id}/retry", s.auth("hr", s.retry))
 	mux.HandleFunc("POST /api/v1/integrations/responses", s.webhook)
 	mux.HandleFunc("POST /api/v1/integrations/tally", s.tally)
@@ -247,23 +249,12 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	}
 	var a *Analysis
 	state := ""
-	if identity(r).Role == "hr" {
+	role := identity(r).Role
+	if role == "hr" || role == "mentor" {
 		a, state, err = s.Store.Analysis(r.Context(), id, rs)
 		if err != nil {
 			s.internal(w, err)
 			return
-		}
-		if s.AgentURL == "" && a == nil {
-			state = "not_connected"
-		}
-		if a != nil {
-			plans := []ConversationPlan{}
-			for _, plan := range a.ConversationPlans {
-				if plan.Month == month {
-					plans = append(plans, plan)
-				}
-			}
-			a.ConversationPlans = plans
 		}
 	}
 	p, _ := s.Store.Person(r.Context(), id)
@@ -272,9 +263,56 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	for m := 1; m <= 6; m++ {
 		timeline = append(timeline, map[string]any{"month": m, "signals": Rules(rs, m)})
 	}
-	// Original mentor questionnaire comments are visible to its own intern by product policy.
-	active := append(append([]Signal{}, rules...), hiddenSignalsForMonth(a, rs, month)...)
-	writeJSON(w, 200, map[string]any{"person": p, "responses": rs, "feedback": fb, "month": month, "ruleSignals": rules, "timeline": timeline, "status": profileStatus(rs, month, active), "ai": a, "aiState": state, "revision": Revision(rs)})
+	revision := Revision(rs)
+	active := rules
+	var hrAnalysis *Analysis
+	payload := map[string]any{"person": p, "feedback": fb, "month": month, "ruleSignals": rules, "timeline": timeline, "revision": revision}
+	switch role {
+	case "hr":
+		if s.AgentURL == "" && a == nil {
+			state = "not_connected"
+		}
+		hrAnalysis = a
+		active = append(append([]Signal{}, rules...), hiddenSignalsForMonth(a, rs, month)...)
+		recommendations := monthRecommendations(id, month, rs, a, rules)
+		for i := range recommendations {
+			recommendations[i].Delivery, err = s.Store.taskDelivery(r.Context(), recommendations[i].ID)
+			if err != nil {
+				s.internal(w, err)
+				return
+			}
+		}
+		payload["recommendations"] = recommendations
+		payload["hrTaskConfigured"] = s.HRTasks != nil
+		if hrAnalysis != nil {
+			var plans []ConversationPlan
+			for _, plan := range hrAnalysis.ConversationPlans {
+				if plan.Month == month {
+					plans = append(plans, plan)
+				}
+			}
+			hrAnalysis.ConversationPlans = plans
+		}
+	case "mentor":
+		state = ""
+		recommendations := []Recommendation{}
+		for _, recommendation := range monthRecommendations(id, month, rs, a, rules) {
+			if recommendation.Audience == "mentor" {
+				recommendations = append(recommendations, recommendation)
+			}
+		}
+		payload["recommendations"] = recommendations
+		for i := range rs {
+			if rs[i].Source == "intern" {
+				rs[i].Comments = map[string]string{}
+			}
+		}
+	}
+	payload["responses"] = rs
+	payload["ai"] = hrAnalysis
+	payload["aiState"] = state
+	payload["status"] = profileStatus(rs, month, active)
+	writeJSON(w, 200, payload)
 }
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	month, err := selectedMonth(r)
@@ -522,7 +560,7 @@ func (s *Server) integrations(w http.ResponseWriter, r *http.Request) {
 		s.internal(w, err)
 		return
 	}
-	writeJSON(w, 200, map[string]any{"agentConfigured": s.AgentURL != "", "webhookConfigured": s.WebhookSecret != "", "tallyConfigured": s.TallySecret != "" && s.InternFormID != "" && s.MentorFormID != "", "deliveries": deliveries, "jobs": jobs})
+	writeJSON(w, 200, map[string]any{"agentConfigured": s.AgentURL != "", "hrTaskConfigured": s.HRTasks != nil, "webhookConfigured": s.WebhookSecret != "", "tallyConfigured": s.TallySecret != "" && s.InternFormID != "" && s.MentorFormID != "", "deliveries": deliveries, "jobs": jobs})
 }
 
 type Action struct {

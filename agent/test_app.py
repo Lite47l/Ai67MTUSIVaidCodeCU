@@ -154,6 +154,7 @@ def test_model_contract_cache_and_bounded_plan_inputs(monkeypatch, tmp_path):
                     "questions": ["Какие задачи конкурируют?", "Как выбрать приоритет?", "Что можно перенести?"],
                     "actionType": "reduce_load",
                     "mentorMessage": "Это поле от модели не публикуется.",
+                    "audience": "intern",
                 }
             else:
                 raise URLError("temporarily unavailable")
@@ -163,6 +164,7 @@ def test_model_contract_cache_and_bounded_plan_inputs(monkeypatch, tmp_path):
     first = analyze([early, late]).json()
     assert first["signals"][0]["evidence"][0]["eventId"] == "qa-early"
     assert first["conversationPlans"][0]["situation"] == "Нужно обсудить объем параллельных задач."
+    assert "audience" not in first["conversationPlans"][0]
     assert "Это поле" not in first["conversationPlans"][0]["mentorMessage"]
     assert first["conversationPlans"][1]["actionType"] == "weekly_1on1"
     assert first["conversationPlans"][1]["evidenceIds"] == ["qa-late#mentorSupport"]
@@ -173,3 +175,23 @@ def test_model_contract_cache_and_bounded_plan_inputs(monkeypatch, tmp_path):
     assert analyze([early, late], "offline-cache").json()["signals"] == first["signals"]
     early["comments"]["difficulties"] = "Теперь задачи распределены комфортно."
     assert analyze([early, late], "changed-text").json()["signals"] == []
+
+
+def test_unrecognized_model_action_is_returned_as_hr_review(monkeypatch, tmp_path):
+    row = payload()["history"][0]
+    row["comments"] = {}
+    use_reviewed_labels(monkeypatch, tmp_path, [])
+    monkeypatch.setenv("AGENT_LLM_URL", "https://test.invalid/chat/completions")
+    monkeypatch.setenv("AGENT_LLM_MODEL", "local-model-stub")
+
+    class Transport:
+        def open(self, request, timeout):
+            answer = {"actionType": "change_tasks_as_intern", "audience": "intern"}
+            return io.BytesIO(json.dumps({"choices": [{"message": {"content": json.dumps(answer)}}]}).encode())
+
+    monkeypatch.setattr(insights, "build_opener", lambda *_: Transport())
+    plan, = analyze([row], "unknown-action").json()["conversationPlans"]
+    assert plan["actionType"] == "other"
+    assert plan["evidenceIds"] == [row["eventId"] + "#workload"]
+    assert len(plan["questions"]) == 3
+    assert "audience" not in plan
