@@ -1,0 +1,12 @@
+# Local case data and secrets
+*.xlsx
+*.docx
+.env
+.env.*
+*.db
+*.sqlite*
+__pycache__/
+.pytest_cache/
+node_modules/
+dist/
+
