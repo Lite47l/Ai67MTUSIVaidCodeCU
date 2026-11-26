@@ -1008,6 +1008,115 @@
         },
         "description": "Первый валидный ответ автоматически создает стажера в той же транзакции. Наставник привязывается по подписанной/доверенной анкете наставника. Существующая привязка и подразделение не перезаписываются."
       }
+    },
+    "/api/v1/hr/enrollments": {
+      "post": {
+        "summary": "Ручное создание участника HR; автоматическая регистрация сохраняется",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Person"
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Участник создан",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Person"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "ID уже существует"
+          },
+          "422": {
+            "description": "Нужны ID, подразделение и наставник"
+          },
+          "403": {
+            "description": "Доступно только HR"
+          }
+        }
+      }
+    },
+    "/api/v1/hr/interns/{id}/recommendations/{recommendation}/confirm": {
+      "post": {
+        "summary": "Подтвердить отправку рекомендации в HR-сервис",
+        "security": [
+          {
+            "cookieAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "recommendation",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "month",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Задача создана",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDelivery"
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Отправка выполняется",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDelivery"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Ошибка доставки; можно повторить",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TaskDelivery"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
@@ -1547,7 +1656,8 @@
               {
                 "type": "null"
               }
-            ]
+            ],
+            "description": "Полный анализ доступен только HR; у остальных ролей null."
           },
           "aiState": {
             "type": "string"
@@ -1575,6 +1685,16 @@
           },
           "mentorStats": {
             "$ref": "#/components/schemas/ScoreSummary"
+          },
+          "recommendations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Recommendation"
+            },
+            "description": "Только HR и наставник; наставник получает audience=mentor. У стажёра поле отсутствует."
+          },
+          "hrTaskConfigured": {
+            "type": "boolean"
           }
         },
         "required": [
@@ -1769,6 +1889,88 @@
             }
           }
         }
+      },
+      "TaskDelivery": {
+        "type": "object",
+        "properties": {
+          "state": {
+            "enum": [
+              "pending",
+              "sending",
+              "failed",
+              "sent"
+            ]
+          },
+          "attempts": {
+            "type": "integer"
+          },
+          "externalId": {
+            "type": "string"
+          },
+          "externalUrl": {
+            "type": "string"
+          },
+          "error": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "state",
+          "attempts"
+        ]
+      },
+      "Recommendation": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "month": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 6
+          },
+          "actionType": {
+            "enum": [
+              "reduce_load",
+              "clarify_tasks",
+              "weekly_1on1",
+              "increase_task_complexity",
+              "hr_talk",
+              "other"
+            ]
+          },
+          "audience": {
+            "enum": [
+              "hr",
+              "mentor"
+            ]
+          },
+          "title": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "delivery": {
+            "$ref": "#/components/schemas/TaskDelivery"
+          }
+        },
+        "required": [
+          "id",
+          "month",
+          "actionType",
+          "audience",
+          "title",
+          "reason",
+          "questions"
+        ]
       }
     },
     "securitySchemes": {

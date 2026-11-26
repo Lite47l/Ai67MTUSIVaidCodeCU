@@ -17,6 +17,7 @@ import (
 )
 
 type Server struct {
+	HRTasks                                                                                        *HRTaskClient
 	Store                                                                                          *Store
 	AgentURL, WebhookSecret, TallySecret, InternFormID, MentorFormID, InternFormURL, MentorFormURL string
 	SecureCookie                                                                                   bool
@@ -102,6 +103,8 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 		}
 		writeJSON(w, 200, map[string]any{"programId": Program, "people": people, "internFields": InternFields, "mentorFields": MentorFields, "labels": Labels, "internFormUrl": s.InternFormURL, "mentorFormUrl": s.MentorFormURL})
 	}))
+	mux.HandleFunc("POST /api/v1/hr/enrollments", s.auth("hr", s.enroll))
+	mux.HandleFunc("POST /api/v1/hr/interns/{id}/recommendations/{recommendation}/confirm", s.auth("hr", s.confirmRecommendation))
 	mux.HandleFunc("GET /api/v1/hr/overview", s.auth("hr", s.overview))
 	mux.HandleFunc("GET /api/v1/hr/integrations", s.auth("hr", s.integrations))
 	mux.HandleFunc("GET /api/v1/hr/export", s.auth("hr", s.export))
@@ -254,13 +257,23 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	}
 	p, _ := s.Store.Person(r.Context(), id)
 	rules := Rules(rs, month)
+	recommendations := monthRecommendations(id, month, rs, a, rules)
+	revision := Revision(rs)
 	hidden := []Signal{}
 	plans := []ConversationPlan{}
 	if identity(r).Role == "hr" {
 		hidden = append(hidden, hiddenSignalsForMonth(a, rs, month)...)
 		plans = conversationPlansForMonth(a, rs, month)
 	} else {
-		a = publicAnalysis(a)
+		a = nil
+		state = ""
+		if identity(r).Role == "mentor" {
+			for i := range rs {
+				if rs[i].Source == "intern" {
+					rs[i].Comments = map[string]string{}
+				}
+			}
+		}
 	}
 	timeline := []any{}
 	for m := 1; m <= 6; m++ {
@@ -269,7 +282,32 @@ func (s *Server) profile(w http.ResponseWriter, r *http.Request) {
 	// Original mentor questionnaire comments are visible to its own intern by product policy.
 	active := append(append([]Signal{}, rules...), hidden...)
 	internStats, mentorStats := ScoresForMonth(rs, month)
-	writeJSON(w, 200, map[string]any{"person": p, "responses": rs, "feedback": fb, "month": month, "internStats": internStats, "mentorStats": mentorStats, "ruleSignals": rules, "hiddenSignals": hidden, "conversationPlans": plans, "timeline": timeline, "status": profileStatus(rs, month, active), "ai": a, "aiState": state, "revision": Revision(rs)})
+
+	payload := map[string]any{"recommendations": []Recommendation{}, "hrTaskConfigured": s.HRTasks != nil}
+	if identity(r).Role == "hr" {
+		for i := range recommendations {
+			recommendations[i].Delivery, err = s.Store.taskDelivery(r.Context(), recommendations[i].ID)
+			if err != nil {
+				s.internal(w, err)
+				return
+			}
+		}
+		payload["recommendations"] = recommendations
+	} else if identity(r).Role == "mentor" {
+		for _, item := range recommendations {
+			if item.Audience == "mentor" {
+				payload["recommendations"] = append(payload["recommendations"].([]Recommendation), item)
+			}
+		}
+	}
+	if identity(r).Role == "intern" {
+		delete(payload, "recommendations")
+		delete(payload, "hrTaskConfigured")
+	}
+	for key, value := range map[string]any{"person": p, "responses": rs, "feedback": fb, "month": month, "internStats": internStats, "mentorStats": mentorStats, "ruleSignals": rules, "hiddenSignals": hidden, "conversationPlans": plans, "timeline": timeline, "status": profileStatus(rs, month, active), "ai": a, "aiState": state, "revision": revision} {
+		payload[key] = value
+	}
+	writeJSON(w, 200, payload)
 }
 func (s *Server) overview(w http.ResponseWriter, r *http.Request) {
 	month, err := selectedMonth(r)

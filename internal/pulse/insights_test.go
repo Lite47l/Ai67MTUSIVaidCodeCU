@@ -99,7 +99,7 @@ func TestHRFeaturesArePeriodScopedAndPrivate(t *testing.T) {
 		if err := json.Unmarshal(w.Body.Bytes(), &d); err != nil {
 			t.Fatal(err)
 		}
-		if d.AI == nil || d.AI.Summary != a.Summary || len(d.Responses) != 12 {
+		if len(d.Responses) != 12 || (test.role == "hr" && (d.AI == nil || d.AI.Summary != a.Summary)) {
 			t.Fatal("existing profile behavior lost")
 		}
 		if test.role == "hr" {
@@ -107,11 +107,8 @@ func TestHRFeaturesArePeriodScopedAndPrivate(t *testing.T) {
 				t.Fatal("HR enrichment missing", d)
 			}
 		} else {
-			if len(d.Hidden) != 0 || len(d.Plans) != 0 || len(d.AI.ConversationPlans) != 0 {
-				t.Fatal("private plan leaked")
-			}
-			if len(d.AI.Signals) != 1 || d.AI.Signals[0].ID != "regular-test" {
-				t.Fatal("existing general AI signal lost")
+			if len(d.Hidden) != 0 || len(d.Plans) != 0 || d.AI != nil {
+				t.Fatal("staff-only analysis leaked")
 			}
 		}
 	}

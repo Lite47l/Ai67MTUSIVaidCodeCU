@@ -106,6 +106,13 @@ func run() error {
 	if err = store.Ready(ctx); err != nil {
 		return fmt.Errorf("run -command migrate or -command demo first: %w", err)
 	}
+	if err = store.UpgradeHRTasks(ctx); err != nil {
+		return err
+	}
+	hrTasks, err := pulse.NewHRTaskClient(os.Getenv("HR_TASK_URL"), os.Getenv("HR_TASK_TOKEN"))
+	if err != nil {
+		return err
+	}
 	agentURL := os.Getenv("AGENT_URL")
 	agentToken := os.Getenv("AGENT_TOKEN")
 	if agentURL != "" {
@@ -126,7 +133,7 @@ func run() error {
 		return errors.New("Tally form IDs must differ")
 	}
 	secure := strings.EqualFold(os.Getenv("COOKIE_SECURE"), "true")
-	app := &pulse.Server{Store: store, AgentURL: agentURL, WebhookSecret: os.Getenv("WEBHOOK_SECRET"), TallySecret: os.Getenv("TALLY_SIGNING_SECRET"), InternFormID: os.Getenv("TALLY_INTERN_FORM_ID"), MentorFormID: os.Getenv("TALLY_MENTOR_FORM_ID"), InternFormURL: os.Getenv("INTERN_FORM_URL"), MentorFormURL: os.Getenv("MENTOR_FORM_URL"), SecureCookie: secure}
+	app := &pulse.Server{Store: store, AgentURL: agentURL, WebhookSecret: os.Getenv("WEBHOOK_SECRET"), TallySecret: os.Getenv("TALLY_SIGNING_SECRET"), InternFormID: os.Getenv("TALLY_INTERN_FORM_ID"), MentorFormID: os.Getenv("TALLY_MENTOR_FORM_ID"), InternFormURL: os.Getenv("INTERN_FORM_URL"), MentorFormURL: os.Getenv("MENTOR_FORM_URL"), SecureCookie: secure, HRTasks: hrTasks}
 	worker := &pulse.Worker{Store: store, URL: agentURL, Token: agentToken}
 	// Startup reconciliation also recovers committed responses after a crash before queuing.
 	if agentURL != "" {

@@ -40,7 +40,12 @@ func (s *Store) Migrate(ctx context.Context) error {
 			return err
 		}
 	}
-	return nil
+	return s.UpgradeHRTasks(ctx)
+}
+
+func (s *Store) UpgradeHRTasks(ctx context.Context) error {
+	_, err := s.DB.ExecContext(ctx, hrTaskSchema)
+	return err
 }
 
 const schema = `
