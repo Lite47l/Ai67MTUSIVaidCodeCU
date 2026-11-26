@@ -325,8 +325,8 @@ func TestNewEnrollmentWebhookAndReplay(t *testing.T) {
 	h := app.Handler(testAssets)
 	hr := loginAs(t, s, h, "hr", "hr", "")
 	w := request(t, h, "POST", "/api/v1/hr/enrollments", Person{"СТ-006", "IT", "Н-006"}, hr)
-	if w.Code != 201 {
-		t.Fatal(w.Code, w.Body.String())
+	if w.Code != 404 {
+		t.Fatal("manual HR registration must be disabled", w.Code)
 	}
 	row := fixture(t)[0]
 	row.EventID = "external:new-1"

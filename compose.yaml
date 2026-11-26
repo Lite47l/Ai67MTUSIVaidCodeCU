@@ -23,6 +23,9 @@ services:
     environment:
       AGENT_TOKEN: ${AGENT_TOKEN:-}
       AGENT_REFERENCE_MODE: ${AGENT_REFERENCE_MODE:-0}
+      LLM_BASE_URL: ${LLM_BASE_URL:-https://llm-proxy.spirit.culab.ru}
+      LLM_MODEL: ${LLM_MODEL:-qwen/qwen3.6-flash}
+      LLM_API_KEY: ${LLM_API_KEY:-}
     restart: unless-stopped
     init: true
 volumes:

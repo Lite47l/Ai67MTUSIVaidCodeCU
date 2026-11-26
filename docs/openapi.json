@@ -551,51 +551,6 @@
         ]
       }
     },
-    "/api/v1/hr/enrollments": {
-      "post": {
-        "summary": "Регистрация нового участника",
-        "responses": {
-          "201": {
-            "description": "Успешно",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Person"
-                }
-              }
-            }
-          },
-          "default": {
-            "description": "Ошибка запроса или сервиса",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "security": [
-          {
-            "cookieAuth": []
-          }
-        ],
-        "x-roles": [
-          "hr"
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/Person"
-              }
-            }
-          }
-        }
-      }
-    },
     "/api/v1/hr/interns/{id}/analysis": {
       "post": {
         "summary": "Запрос анализа актуальной ревизии",
@@ -959,7 +914,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Первый валидный ответ автоматически создает стажера в той же транзакции. Наставник привязывается по подписанной/доверенной анкете наставника. Существующая привязка и подразделение не перезаписываются."
       }
     },
     "/api/v1/integrations/tally": {
@@ -1048,7 +1004,8 @@
               }
             }
           }
-        }
+        },
+        "description": "Первый валидный ответ автоматически создает стажера в той же транзакции. Наставник привязывается по подписанной/доверенной анкете наставника. Существующая привязка и подразделение не перезаписываются."
       }
     }
   },

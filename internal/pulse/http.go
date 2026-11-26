@@ -102,7 +102,6 @@ func (s *Server) Handler(assets fs.FS) http.Handler {
 		}
 		writeJSON(w, 200, map[string]any{"programId": Program, "people": people, "internFields": InternFields, "mentorFields": MentorFields, "labels": Labels, "internFormUrl": s.InternFormURL, "mentorFormUrl": s.MentorFormURL})
 	}))
-	mux.HandleFunc("POST /api/v1/hr/enrollments", s.auth("hr", s.enroll))
 	mux.HandleFunc("GET /api/v1/hr/overview", s.auth("hr", s.overview))
 	mux.HandleFunc("GET /api/v1/hr/integrations", s.auth("hr", s.integrations))
 	mux.HandleFunc("GET /api/v1/hr/export", s.auth("hr", s.export))
@@ -346,7 +345,13 @@ func (s *Server) ingest(w http.ResponseWriter, r *http.Request, row Response, so
 		problem(w, 422, err.Error())
 		return
 	}
-	n, err := s.Store.Import(r.Context(), []Response{row})
+	var n int
+	var err error
+	if source == "webhook" || source == "tally" {
+		n, err = s.Store.ImportTrusted(r.Context(), []Response{row})
+	} else {
+		n, err = s.Store.Import(r.Context(), []Response{row})
+	}
 	if err != nil {
 		if errors.Is(err, ErrValidation) {
 			_ = s.Store.RecordDelivery(r.Context(), row.EventID, "rejected", source)

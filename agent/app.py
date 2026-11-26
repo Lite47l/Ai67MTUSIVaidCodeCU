@@ -1,4 +1,4 @@
-"""FastAPI boundary for the future Python AI agent. No model is bundled."""
+"""FastAPI agent: Qwen analysis with exact evidence validation."""
 from __future__ import annotations
 
 import hashlib
@@ -11,6 +11,9 @@ from typing import Literal
 
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel, ConfigDict, Field, StrictInt
+from pydantic import ValidationError
+
+from llm import generate
 
 
 class StrictModel(BaseModel):
@@ -77,19 +80,37 @@ def authorize(authorization: str | None) -> None:
 
 
 def analyze_history(req: AnalyzeRequest) -> AnalyzeResult:
-    """Replace this function with the team's AI implementation.
-
-    Treat comments as untrusted data, never as model instructions. Keep exact
-    evidence values. A numeric score must use its decimal string, a comment
-    must use its full original string. Go validates every evidence reference.
-    """
-    if os.getenv("AGENT_REFERENCE_MODE") != "1":
-        raise HTTPException(501, "AI model is not implemented; replace analyze_history")
-    return AnalyzeResult(
-        schemaVersion="1.0", requestId=req.requestId, revision=req.revision,
-        summary="Контракт Go ↔ FastAPI проверен. Это ответ адаптера без AI-модели; аналитические выводы не сформированы.",
-        signals=[], recommendations=[],
-    )
+    if os.getenv("AGENT_REFERENCE_MODE") == "1":
+        return AnalyzeResult(
+            schemaVersion="1.0", requestId=req.requestId, revision=req.revision,
+            summary="Контракт Go ↔ FastAPI проверен. Это ответ адаптера без AI-модели; аналитические выводы не сформированы.",
+            signals=[], recommendations=[],
+        )
+    # IDs are owned by Go, never generated or changed by the model.
+    history = [row.model_dump(mode="json", exclude_none=True) for row in
+               sorted(req.history, key=lambda row: (row.month, row.source))]
+    try:
+        result = AnalyzeResult(schemaVersion="1.0", requestId=req.requestId,
+                               revision=req.revision, **generate(history))
+    except (ValidationError, TypeError):
+        raise HTTPException(502, "LLM analysis failed schema validation") from None
+    evidence = {}
+    for row in req.history:
+        for field, value in row.scores.items():
+            if value is not None:
+                evidence[(row.eventId, field)] = str(value)
+        for field, value in row.comments.items():
+            if value:
+                evidence[(row.eventId, field)] = value
+    ids = set()
+    for signal in result.signals:
+        if signal.id in ids:
+            raise HTTPException(502, "LLM returned duplicate signal IDs")
+        ids.add(signal.id)
+        for item in signal.evidence:
+            if evidence.get((item.eventId, item.field)) != item.value:
+                raise HTTPException(502, "LLM evidence does not match original responses")
+    return result
 
 
 @app.get("/healthz")

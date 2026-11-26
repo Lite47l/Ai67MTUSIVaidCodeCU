@@ -38,8 +38,6 @@ def main():
     status, _ = call("/auth/login", {"username": os.getenv("DEMO_HR_USERNAME", "hr"),
                                     "password": os.getenv("DEMO_HR_PASSWORD", "Mgts-demo-2026!")})
     assert status == 200, "HR login failed"
-    status, _ = call("/hr/enrollments", {"id": "СТ-DEMO", "department": "IT", "mentorId": "Н-DEMO"})
-    assert status in (201, 409), "Enrollment failed"
     with open(os.path.join(os.path.dirname(__file__), "..", "web", "questions.json"), encoding="utf-8") as f:
         questions = json.load(f)
     _, schema = call("/schema")

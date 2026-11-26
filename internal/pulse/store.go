@@ -92,6 +92,15 @@ func (s *Store) Responses(ctx context.Context, id string) ([]Response, error) {
 
 // All rows in an import commit together. Natural-key conflicts never overwrite history.
 func (s *Store) Import(ctx context.Context, rs []Response) (int, error) {
+	return s.importResponses(ctx, rs, false)
+}
+
+// ImportTrusted may register a participant from an authenticated external form.
+// Ordinary portal requests and historical imports keep strict registry checks.
+func (s *Store) ImportTrusted(ctx context.Context, rs []Response) (int, error) {
+	return s.importResponses(ctx, rs, true)
+}
+func (s *Store) importResponses(ctx context.Context, rs []Response, trusted bool) (int, error) {
 	for _, r := range rs {
 		if err := r.Validate(); err != nil {
 			return 0, fmt.Errorf("%w: %s", ErrValidation, err)
@@ -105,6 +114,11 @@ func (s *Store) Import(ctx context.Context, rs []Response) (int, error) {
 	count := 0
 	for _, r := range rs {
 		var department, mentor string
+		if trusted {
+			if err = autoEnroll(ctx, tx, r); err != nil {
+				return 0, err
+			}
+		}
 		if err = tx.QueryRowContext(ctx, "SELECT department,mentor_id FROM people WHERE id=?", r.InternID).Scan(&department, &mentor); errors.Is(err, sql.ErrNoRows) {
 			return 0, fmt.Errorf("%w: internId: участник не зарегистрирован", ErrValidation)
 		}

@@ -33,8 +33,9 @@ def test_no_fake_model(monkeypatch):
     _cache.clear()
     monkeypatch.setenv("AGENT_TOKEN", token)
     monkeypatch.delenv("AGENT_REFERENCE_MODE", raising=False)
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
     h = {"Authorization": "Bearer " + token, "Idempotency-Key": "request-1"}
-    assert client.post("/v1/analyze", headers=h, json=payload()).status_code == 501
+    assert client.post("/v1/analyze", headers=h, json=payload()).status_code == 503
 
 
 def test_invalid_history(monkeypatch):
